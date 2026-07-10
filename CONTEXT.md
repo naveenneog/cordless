@@ -9,9 +9,9 @@ A mobile app + Node daemon to manage many **remote PTY / coding-agent sessions**
 `codex`) running on a personal dev box, presented like **browser tabs**. Sessions survive client
 disconnects; reconnect replays from the last-applied byte or a snapshot.
 
-Owner: @naveenneog. Built with GitHub Copilot CLI. Design partner: **GPT-5.6 Sol** on Azure
-(`REDACTED-AZURE-RESOURCE`, deployment `gpt-5.6-sol`). The Sol conversation is stateful — see
-"Working with Sol" below.
+Owner: @naveenneog. Built with GitHub Copilot CLI. Design partner: **GPT-5.6 Sol** on Azure AI Foundry
+(endpoint + deployment configured via env or `tooling/sol.local.json`, gitignored). The Sol conversation
+is stateful — see "Working with Sol" below.
 
 ## Repo layout
 
