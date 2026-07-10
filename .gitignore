@@ -1,0 +1,25 @@
+# deps
+node_modules/
+
+# build output (client is built into agent/public; rebuild with `npm run build`)
+agent/public/
+
+# local runtime state / tests
+.testhome/
+*.log
+
+# playwright artifacts
+.playwright-mcp/
+*.png
+
+# Sol working files (transcript + scratch answers are ephemeral; scripts + sol_plan.md are kept)
+tooling/sol_conversation.json
+tooling/answer_*.md
+tooling/*.err
+
+# capacitor / android build
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+.DS_Store
