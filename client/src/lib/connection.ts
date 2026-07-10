@@ -11,9 +11,12 @@ const ACK_INTERVAL = 250;
 const RESIZE_DEBOUNCE = 90;
 const LIST_POLL = 4000;
 const WATCHDOG_MS = 15000;
+const CONNECT_TIMEOUT = 12000;
 const HOT_BACKGROUND = 3; // active + up to N background sessions stay attached/streaming
-const MAX_QUEUED_BYTES = 1024 * 1024; // detach a noisy background tab past this
+const MAX_QUEUED_BYTES = 1024 * 1024; // suppress a noisy background tab past this
 const REQUEST_TIMEOUT = 12000;
+const BG_CLOSE_MS = 500;
+const COLS_MIN = 20, COLS_MAX = 300, ROWS_MIN = 5, ROWS_MAX = 120;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -46,12 +49,18 @@ interface Tab {
   pane: HTMLDivElement | null;
   opened: boolean;
   appliedSeq: number; // last seq parsed into xterm (what we ack)
-  highestReceivedSeq: number;
+  highestReceivedSeq: number; // admission gate
   applyChain: Promise<void>;
   queuedBytes: number;
   attachedEpoch: number | null;
+  attachingEpoch: number | null;
+  attachGeneration: number;
+  streamSuppressed: boolean;
   pendingAck: boolean;
   ackTimer: ReturnType<typeof setTimeout> | null;
+  ackEpoch: number | null;
+  resizeTimer: ReturnType<typeof setTimeout> | null;
+  resizeGeneration: number;
   unread: boolean;
   desiredCols: number;
   desiredRows: number;
@@ -104,12 +113,13 @@ export class Connection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private listTimer: ReturnType<typeof setInterval> | null = null;
-  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  private backgroundCloseTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFrameAt = 0;
-  private helloResolved = false;
 
   activeId: string | null = null;
   tabs = new Map<string, Tab>();
+  private locallyClosed = new Set<string>();
   ctrlLatch = false;
   altLatch = false;
   private mru: string[] = []; // most-recently-active first
@@ -122,6 +132,7 @@ export class Connection {
     this.base = getServerBase();
     window.addEventListener("online", this.onOnline);
     document.addEventListener("visibilitychange", this.onVisibility);
+    window.addEventListener("pagehide", this.onPageHide);
     window.addEventListener("resize", this.onViewportChange);
     window.visualViewport?.addEventListener("resize", this.onViewportChange);
   }
@@ -158,7 +169,6 @@ export class Connection {
     if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
     this.clearReconnect();
     this.state = "connecting";
-    this.helloResolved = false;
     this.epoch += 1;
     const epoch = this.epoch;
     this.emit();
@@ -173,6 +183,15 @@ export class Connection {
     }
     ws.binaryType = "arraybuffer";
     this.ws = ws;
+
+    // one timer covering both open and authentication
+    if (this.connectTimer) clearTimeout(this.connectTimer);
+    this.connectTimer = setTimeout(() => {
+      if (epoch === this.epoch && this.state !== "ready") {
+        this.lastError = "connection timeout";
+        try { ws.close(); } catch {}
+      }
+    }, CONNECT_TIMEOUT);
 
     ws.onopen = () => {
       if (epoch !== this.epoch) {
@@ -190,22 +209,22 @@ export class Connection {
       this.lastFrameAt = Date.now();
       let m: any;
       try { m = JSON.parse(typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data)); } catch { return; }
-      this.onMessage(m, epoch);
+      void this.onMessage(m, epoch);
     };
 
     ws.onclose = () => {
       if (epoch !== this.epoch) return;
       this.onClose(epoch);
     };
-    ws.onerror = () => { /* onclose will follow */ };
+    ws.onerror = () => { /* onclose follows */ };
   }
 
   private onClose(epoch: number) {
     this.state = "closed";
     this.ws = null;
+    if (this.connectTimer) { clearTimeout(this.connectTimer); this.connectTimer = null; }
     this.stopWatchdog();
     this.stopListPoll();
-    // reject in-flight requests for this epoch
     for (const [id, p] of [...this.pending]) {
       if (p.epoch === epoch) {
         clearTimeout(p.timer);
@@ -213,10 +232,12 @@ export class Connection {
         this.pending.delete(id);
       }
     }
-    // detach tabs (keep lastSeq/appliedSeq!)
+    // detach tabs (keep appliedSeq!)
     for (const t of this.tabs.values()) {
       t.attachedEpoch = null;
+      t.attachingEpoch = null;
       if (t.ackTimer) { clearTimeout(t.ackTimer); t.ackTimer = null; }
+      t.ackEpoch = null;
       t.pendingAck = false;
     }
     this.emit();
@@ -226,7 +247,8 @@ export class Connection {
   private scheduleReconnect() {
     if (this.stopped) return;
     this.clearReconnect();
-    const delay = BACKOFF[Math.min(this.backoffIdx, BACKOFF.length - 1)] + (this.backoffIdx >= BACKOFF.length ? Math.random() * 5000 : 0);
+    const delay =
+      this.backoffIdx < BACKOFF.length ? BACKOFF[this.backoffIdx] : 30000 + Math.random() * 5000;
     this.backoffIdx += 1;
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
@@ -236,16 +258,26 @@ export class Connection {
 
   private onOnline = () => {
     this.backoffIdx = 0;
-    if (this.state === "closed") this.connect();
+    if (this.state === "closed" || !this.ws || this.ws.readyState >= WebSocket.CLOSING) this.connect();
   };
   private onVisibility = () => {
     if (document.visibilityState === "visible") {
+      if (this.backgroundCloseTimer) { clearTimeout(this.backgroundCloseTimer); this.backgroundCloseTimer = null; }
       this.backoffIdx = 0;
-      if (this.state === "closed") this.connect();
-    } else {
-      // flush acks immediately before backgrounding
-      for (const t of this.tabs.values()) if (t.pendingAck) this.flushAck(t, this.epoch);
+      if (this.state === "closed" || !this.ws || this.ws.readyState >= WebSocket.CLOSING) this.connect();
+      return;
     }
+    // hidden: flush acks, then close shortly (Android may freeze JS while the socket looks open)
+    for (const t of this.tabs.values()) if (t.pendingAck) this.flushAck(t, this.epoch);
+    if (this.backgroundCloseTimer) clearTimeout(this.backgroundCloseTimer);
+    this.backgroundCloseTimer = setTimeout(() => {
+      this.backgroundCloseTimer = null;
+      try { this.ws?.close(1000, "app backgrounded"); } catch {}
+    }, BG_CLOSE_MS);
+  };
+  private onPageHide = () => {
+    for (const t of this.tabs.values()) if (t.pendingAck) this.flushAck(t, this.epoch);
+    try { this.ws?.close(1000, "pagehide"); } catch {}
   };
 
   // ---- messaging ----
@@ -283,7 +315,7 @@ export class Connection {
     switch (m.type) {
       case "hello.result":
         if (m.ok) {
-          this.helloResolved = true;
+          if (this.connectTimer) { clearTimeout(this.connectTimer); this.connectTimer = null; }
           this.state = "ready";
           this.backoffIdx = 0;
           this.lastError = "";
@@ -312,49 +344,72 @@ export class Connection {
     }
   }
 
-  // After (re)connect + auth: re-attach the hot set (active first), resend sizes.
+  // After (re)connect + auth: re-attach the hot set (active first).
   private async onReady(epoch: number) {
     const hot = this.hotSet();
     const ordered = this.activeId ? [this.activeId, ...hot.filter((id) => id !== this.activeId)] : hot;
     for (const id of ordered) {
       const t = this.tabs.get(id);
       if (!t || epoch !== this.epoch) continue;
-      await t.applyChain.catch(() => {}); // drain queued writes so appliedSeq is accurate
-      if (epoch !== this.epoch) return;
       await this.attachTab(t, epoch);
     }
   }
 
   private hotSet(): string[] {
-    const ids = [...this.mru];
+    const ids = this.mru.filter((id) => {
+      const t = this.tabs.get(id);
+      return t && (!t.streamSuppressed || id === this.activeId);
+    });
     if (this.activeId && !ids.includes(this.activeId)) ids.unshift(this.activeId);
     return ids.slice(0, 1 + HOT_BACKGROUND);
   }
 
   private async attachTab(t: Tab, epoch: number) {
+    if (epoch !== this.epoch || this.state !== "ready" || t.attachedEpoch === epoch || t.attachingEpoch === epoch) return;
+    const generation = ++t.attachGeneration;
+    t.attachingEpoch = epoch;
+
+    // drain queued writes so appliedSeq is accurate, then reset per-stream state so the
+    // server's replay-from-appliedSeq is not rejected as duplicates.
+    await t.applyChain.catch(() => {});
+    if (epoch !== this.epoch || generation !== t.attachGeneration) {
+      if (t.attachingEpoch === epoch) t.attachingEpoch = null;
+      return;
+    }
+    if (t.ackTimer) { clearTimeout(t.ackTimer); t.ackTimer = null; }
+    t.ackEpoch = null;
+    t.pendingAck = false;
+    t.highestReceivedSeq = t.appliedSeq;
+
     try {
       const res = await this.request({
         type: "session.attach",
         sessionId: t.sessionId,
         fromSeq: t.appliedSeq >= 0 ? t.appliedSeq : null,
       });
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch || generation !== t.attachGeneration || !this.hotSet().includes(t.sessionId)) {
+        this.rawSend({ type: "session.detach", sessionId: t.sessionId });
+        return;
+      }
       t.attachedEpoch = epoch;
-      // resend desired size after attach
       if (t.desiredCols && t.desiredRows) {
         this.rawSend({ type: "session.resize", sessionId: t.sessionId, cols: t.desiredCols, rows: t.desiredRows });
       }
       void res;
     } catch {
-      /* will retry on next reconnect */
+      /* reconcile/reconnect will retry */
+    } finally {
+      if (t.attachingEpoch === epoch) t.attachingEpoch = null;
     }
   }
 
   private detachTab(t: Tab) {
-    if (t.attachedEpoch !== null) {
+    t.attachGeneration += 1; // invalidate any in-flight attach
+    if (t.attachedEpoch !== null || t.attachingEpoch !== null) {
       this.rawSend({ type: "session.detach", sessionId: t.sessionId });
-      t.attachedEpoch = null;
     }
+    t.attachedEpoch = null;
+    t.attachingEpoch = null;
   }
 
   private reconcileHotSet() {
@@ -363,21 +418,35 @@ export class Connection {
       if (t.sessionId === this.activeId) continue;
       if (!keep.has(t.sessionId) && t.attachedEpoch !== null) this.detachTab(t);
     }
-    // attach any hot member not attached
     if (this.state === "ready") {
       for (const id of keep) {
         const t = this.tabs.get(id);
-        if (t && t.attachedEpoch === null) void this.attachTab(t, this.epoch);
+        if (t && t.attachedEpoch === null && t.attachingEpoch === null) void this.attachTab(t, this.epoch);
       }
     }
   }
 
   // ---- output application (serialized per tab; reset ordered behind writes) ----
   private onOutput(frame: OutputFrame, epoch: number) {
+    if (epoch !== this.epoch) return;
     const t = this.tabs.get(frame.sessionId);
     if (!t) return;
-    if (!frame.reset && frame.seq <= t.appliedSeq) return; // duplicate
-    t.highestReceivedSeq = Math.max(t.highestReceivedSeq, frame.seq);
+    // only accept frames from a stream we attached (or are attaching) this epoch
+    if (t.attachedEpoch !== epoch && t.attachingEpoch !== epoch) return;
+
+    if (frame.reset) {
+      t.highestReceivedSeq = frame.seq;
+    } else {
+      if (frame.seq <= t.highestReceivedSeq) return; // duplicate
+      const expected = t.highestReceivedSeq + 1;
+      if (frame.seq !== expected) {
+        this.lastError = `output gap ${frame.sessionId}: expected ${expected} got ${frame.seq}`;
+        try { this.ws?.close(1011, "output gap"); } catch {}
+        return;
+      }
+      t.highestReceivedSeq = frame.seq;
+    }
+
     if (t.sessionId !== this.activeId && !t.unread) { t.unread = true; this.emit(); }
 
     const bytes = b64ToBytes(frame.data);
@@ -386,35 +455,36 @@ export class Connection {
     t.applyChain = t.applyChain.then(
       () =>
         new Promise<void>((resolve) => {
-          if (epoch !== this.epoch) { t.queuedBytes -= bytes.length; resolve(); return; }
           if (frame.reset) t.term.reset();
           t.term.write(bytes, () => {
             t.queuedBytes -= bytes.length;
-            if (epoch === this.epoch) {
-              t.appliedSeq = frame.seq;
-              this.scheduleAck(t, epoch);
-            }
+            // once accepted, always advance appliedSeq (durable state) — Sol review A.1
+            t.appliedSeq = frame.seq;
+            if (t.attachedEpoch === epoch) this.scheduleAck(t, epoch);
             resolve();
           });
         })
     );
 
-    // protect the UI: drop a noisy *background* tab
     if (t.sessionId !== this.activeId && t.queuedBytes > MAX_QUEUED_BYTES && t.attachedEpoch !== null) {
+      t.streamSuppressed = true;
       this.detachTab(t);
     }
   }
 
   private scheduleAck(t: Tab, epoch: number) {
     t.pendingAck = true;
-    if (t.ackTimer) return;
+    if (t.ackTimer && t.ackEpoch === epoch) return;
+    if (t.ackTimer) clearTimeout(t.ackTimer);
+    t.ackEpoch = epoch;
     t.ackTimer = setTimeout(() => {
       t.ackTimer = null;
+      t.ackEpoch = null;
       if (epoch === this.epoch) this.flushAck(t, epoch);
     }, ACK_INTERVAL);
   }
   private flushAck(t: Tab, epoch: number) {
-    if (epoch !== this.epoch || t.attachedEpoch !== epoch) { t.pendingAck = false; return; }
+    if (epoch !== this.epoch || t.attachedEpoch !== epoch) return;
     if (!t.pendingAck) return;
     t.pendingAck = false;
     this.rawSend({ type: "session.ack", sessionId: t.sessionId, seq: t.appliedSeq });
@@ -432,6 +502,7 @@ export class Connection {
     const seen = new Set<string>();
     for (const s of sessions) {
       seen.add(s.sessionId);
+      if (this.locallyClosed.has(s.sessionId)) continue;
       let t = this.tabs.get(s.sessionId);
       if (!t) {
         t = this.createTabShell(s);
@@ -440,15 +511,21 @@ export class Connection {
       t.title = s.title;
       t.state = s.state;
       t.exitCode = s.exitCode;
-      // cheap unread for ALL sessions (even detached): server latestSeq advanced past what we applied
-      if (s.sessionId !== this.activeId && s.latestSeq > t.appliedSeq) {
-        if (!t.unread) t.unread = true;
+      if (s.sessionId !== this.activeId && s.latestSeq > t.appliedSeq && !t.unread) t.unread = true;
+    }
+    // remove tabs whose sessions vanished from the server
+    for (const id of [...this.tabs.keys()]) {
+      if (!seen.has(id)) {
+        this.locallyClosed.delete(id);
+        this.disposeTab(id);
       }
     }
-    // auto-select the most recently active session if nothing is active (e.g. after reload)
-    if (!this.activeId && sessions.length) {
-      const recent = [...sessions].sort((a, b) => (a.lastActivityAt < b.lastActivityAt ? 1 : -1))[0];
-      this.setActive(recent.sessionId);
+    for (const id of [...this.locallyClosed]) if (!seen.has(id)) this.locallyClosed.delete(id);
+
+    if (!this.activeId && this.tabs.size) {
+      // most-recently-created first (session ids are time-ordered enough for MVP)
+      const first = [...this.tabs.values()][this.tabs.size - 1];
+      this.setActive(first.sessionId);
     } else {
       this.emit();
     }
@@ -484,63 +561,79 @@ export class Connection {
       applyChain: Promise.resolve(),
       queuedBytes: 0,
       attachedEpoch: null,
+      attachingEpoch: null,
+      attachGeneration: 0,
+      streamSuppressed: false,
       pendingAck: false,
       ackTimer: null,
+      ackEpoch: null,
+      resizeTimer: null,
+      resizeGeneration: 0,
       unread: false,
       desiredCols: s.cols || 80,
       desiredRows: s.rows || 24,
     };
 
     term.onData((d) => this.sendData(tab, d));
-    term.onBinary((d) => this.sendInput(tab, latin1ToB64(d)));
+    term.onBinary((d) => this.sendInputRaw(tab, latin1ToB64(d)));
     return tab;
   }
 
-  private sendInput(t: Tab, dataB64: string) {
+  private sendInputRaw(t: Tab, dataB64: string) {
     if (this.state !== "ready" || t.attachedEpoch !== this.epoch) return; // never queue input across disconnect
     this.rawSend({ type: "session.input", sessionId: t.sessionId, data: dataB64 });
   }
 
-  // Typed input path: apply latched Ctrl/Alt modifiers, then send.
+  // Typed input path: reject inactive tabs, apply latched modifiers, then send.
   private sendData(t: Tab, d: string) {
-    this.sendInput(t, strToB64(this.consumeModifiers(d)));
+    if (t.sessionId !== this.activeId) return;
+    this.sendInputRaw(t, strToB64(this.consumeModifiers(d)));
   }
 
   private consumeModifiers(d: string): string {
-    if (this.ctrlLatch && d.length === 1) {
-      const up = d.toUpperCase().charCodeAt(0);
-      if (up >= 63 && up <= 95) d = String.fromCharCode(up & 0x1f);
-      this.ctrlLatch = false;
-      this.emit();
+    if (!d) return d;
+    const ctrl = this.ctrlLatch;
+    const alt = this.altLatch;
+    this.ctrlLatch = false;
+    this.altLatch = false;
+    if (ctrl && d.length === 1) {
+      const code = d.toUpperCase().charCodeAt(0);
+      if (code >= 63 && code <= 95) d = String.fromCharCode(code & 0x1f);
     }
-    if (this.altLatch && d) {
-      d = "\x1b" + d;
+    if (alt) d = "\x1b" + d;
+    if (ctrl || alt) this.emit();
+    return d;
+  }
+
+  private clearLatches() {
+    if (this.ctrlLatch || this.altLatch) {
+      this.ctrlLatch = false;
       this.altLatch = false;
       this.emit();
     }
-    return d;
   }
 
   getActiveTab(): Tab | null {
     return this.activeId ? this.tabs.get(this.activeId) || null : null;
   }
 
-  // Touch keybar: send a literal control sequence (Esc, Tab, arrows, Ctrl-C, ...) to the active pty.
+  // Touch keybar: send a literal control sequence to the active pty (clears any armed modifier).
   pressSpecial(seq: string) {
     const t = this.getActiveTab();
-    if (t) this.sendInput(t, strToB64(seq));
-    const el = t?.pane;
-    if (el) t!.term.focus();
+    this.clearLatches();
+    if (t) {
+      this.sendInputRaw(t, strToB64(seq));
+      t.term.focus();
+    }
   }
 
   sendText(text: string) {
     const t = this.getActiveTab();
-    if (t) this.sendInput(t, strToB64(text));
+    if (t) this.sendInputRaw(t, strToB64(text));
   }
 
   toggleCtrl() {
     this.ctrlLatch = !this.ctrlLatch;
-    if (this.ctrlLatch) this.altLatch = this.altLatch; // no-op, keep independent
     this.emit();
   }
   toggleAlt() {
@@ -560,6 +653,11 @@ export class Connection {
     if (sessionId === this.activeId) this.activatePane(t);
   }
 
+  refit(sessionId: string) {
+    const t = this.tabs.get(sessionId);
+    if (t && t.opened) this.activatePane(t);
+  }
+
   private activatePane(t: Tab) {
     requestAnimationFrame(() => {
       const el = t.pane;
@@ -571,21 +669,24 @@ export class Connection {
   }
 
   private applyResize(t: Tab) {
-    const cols = clamp(t.term.cols, 2, 300);
-    const rows = clamp(t.term.rows, 1, 120);
+    const cols = clamp(t.term.cols, COLS_MIN, COLS_MAX);
+    const rows = clamp(t.term.rows, ROWS_MIN, ROWS_MAX);
     if (cols === t.desiredCols && rows === t.desiredRows) return;
     t.desiredCols = cols;
     t.desiredRows = rows;
-    if (this.resizeTimer) clearTimeout(this.resizeTimer);
-    this.resizeTimer = setTimeout(() => {
-      if (t.attachedEpoch === this.epoch) {
-        this.rawSend({ type: "session.resize", sessionId: t.sessionId, cols, rows });
-      }
+    if (t.resizeTimer) clearTimeout(t.resizeTimer);
+    const generation = ++t.resizeGeneration;
+    const epoch = this.epoch;
+    t.resizeTimer = setTimeout(() => {
+      t.resizeTimer = null;
+      if (generation !== t.resizeGeneration || epoch !== this.epoch || t.attachedEpoch !== epoch) return;
+      if (t.desiredCols !== cols || t.desiredRows !== rows) return;
+      this.rawSend({ type: "session.resize", sessionId: t.sessionId, cols, rows });
     }, RESIZE_DEBOUNCE);
   }
 
   private onViewportChange = () => {
-    const t = this.activeId ? this.tabs.get(this.activeId) : null;
+    const t = this.getActiveTab();
     if (!t) return;
     requestAnimationFrame(() => {
       const el = t.pane;
@@ -596,19 +697,18 @@ export class Connection {
   };
 
   // ---- public actions ----
-  refit(sessionId: string) {
-    const t = this.tabs.get(sessionId);
-    if (t && t.opened) this.activatePane(t);
-  }
-
   setActive(sessionId: string) {
     if (this.activeId === sessionId) return;
+    const prev = this.getActiveTab();
+    prev?.term.blur();
     this.activeId = sessionId;
     this.mru = [sessionId, ...this.mru.filter((id) => id !== sessionId)];
+    this.locallyClosed.delete(sessionId);
     const t = this.tabs.get(sessionId);
     if (t) {
       t.unread = false;
-      if (t.attachedEpoch === null && this.state === "ready") void this.attachTab(t, this.epoch);
+      t.streamSuppressed = false;
+      if (t.attachedEpoch === null && t.attachingEpoch === null && this.state === "ready") void this.attachTab(t, this.epoch);
       if (t.opened) this.activatePane(t);
     }
     this.reconcileHotSet();
@@ -616,12 +716,11 @@ export class Connection {
   }
 
   async createSession(profile: string, opts: { cwd?: string; title?: string } = {}) {
-    const t = this.activeId ? this.tabs.get(this.activeId) : null;
-    const cols = t?.desiredCols || 80;
-    const rows = t?.desiredRows || 24;
+    const active = this.getActiveTab();
+    const cols = active?.desiredCols || 80;
+    const rows = active?.desiredRows || 24;
     const res = await this.request({ type: "session.create", profile, cwd: opts.cwd, cols, rows, title: opts.title });
     const sessionId = res.sessionId as string;
-    // proactively fetch list so the tab appears with correct metadata
     await this.refreshList();
     this.setActive(sessionId);
     return sessionId;
@@ -629,34 +728,34 @@ export class Connection {
 
   async killSession(sessionId: string) {
     await this.request({ type: "session.kill", sessionId, mode: "graceful" }).catch(() => {});
-    const t = this.tabs.get(sessionId);
-    if (t) {
-      this.closeTabLocal(sessionId);
-    }
+    this.closeTab(sessionId);
   }
 
   // Remove a tab locally (detach + dispose). Does not kill the remote session.
   closeTab(sessionId: string) {
-    this.detachTabById(sessionId);
-    this.closeTabLocal(sessionId);
-  }
-  private detachTabById(sessionId: string) {
     const t = this.tabs.get(sessionId);
     if (t) this.detachTab(t);
-  }
-  private closeTabLocal(sessionId: string) {
-    const t = this.tabs.get(sessionId);
-    if (!t) return;
-    if (t.ackTimer) clearTimeout(t.ackTimer);
-    try { t.term.dispose(); } catch {}
-    this.tabs.delete(sessionId);
-    this.mru = this.mru.filter((id) => id !== sessionId);
-    if (this.activeId === sessionId) {
-      this.activeId = this.mru[0] || (this.tabs.keys().next().value ?? null);
-      if (this.activeId) this.setActive(this.activeId);
+    this.locallyClosed.add(sessionId);
+    const wasActive = this.activeId === sessionId;
+    this.disposeTab(sessionId);
+    if (wasActive) {
+      const next = this.mru[0] || (this.tabs.keys().next().value ?? null);
+      this.activeId = null;
+      if (next) this.setActive(next);
     }
     this.reconcileHotSet();
     this.emit();
+  }
+
+  private disposeTab(sessionId: string) {
+    const t = this.tabs.get(sessionId);
+    if (!t) return;
+    if (t.ackTimer) clearTimeout(t.ackTimer);
+    if (t.resizeTimer) clearTimeout(t.resizeTimer);
+    try { t.term.dispose(); } catch {}
+    this.tabs.delete(sessionId);
+    this.mru = this.mru.filter((id) => id !== sessionId);
+    if (this.activeId === sessionId) this.activeId = null;
   }
 
   refreshList() {
@@ -689,10 +788,27 @@ export class Connection {
     this.clearReconnect();
     this.stopWatchdog();
     this.stopListPoll();
+    if (this.connectTimer) clearTimeout(this.connectTimer);
+    if (this.backgroundCloseTimer) clearTimeout(this.backgroundCloseTimer);
+    for (const [id, p] of this.pending) {
+      clearTimeout(p.timer);
+      p.reject(new Error("connection destroyed"));
+      this.pending.delete(id);
+    }
+    for (const t of this.tabs.values()) {
+      if (t.ackTimer) clearTimeout(t.ackTimer);
+      if (t.resizeTimer) clearTimeout(t.resizeTimer);
+      try { t.term.dispose(); } catch {}
+    }
+    this.tabs.clear();
+    this.listeners.clear();
     window.removeEventListener("online", this.onOnline);
     document.removeEventListener("visibilitychange", this.onVisibility);
+    window.removeEventListener("pagehide", this.onPageHide);
     window.removeEventListener("resize", this.onViewportChange);
     window.visualViewport?.removeEventListener("resize", this.onViewportChange);
-    try { this.ws?.close(); } catch {}
+    const ws = this.ws;
+    this.ws = null;
+    try { ws?.close(); } catch {}
   }
 }

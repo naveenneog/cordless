@@ -49,6 +49,9 @@ const DEFAULT_CONFIG = {
   maxSessions: 20,
   ringBytesPerSession: 8 * 1024 * 1024,
   scrollback: 10000,
+  // WebSocket/pairing Origin allowlist (same-origin + localhost are always allowed).
+  // Add your Capacitor app origin here if you package the APK, e.g. "http://localhost".
+  allowedOrigins: ["capacitor://localhost", "http://localhost", "https://localhost", "ionic://localhost"],
   profiles: {
     shell: { label: "Shell" },
     claude: { label: "Claude Code", initCommand: "claude" },

@@ -39,6 +39,43 @@ const CONTENT_TYPES = {
   ".woff2": "font/woff2",
 };
 
+// Content-Security-Policy: scripts are same-origin bundles only (no inline script -> strong XSS
+// defense); ws:/wss: allowed for the terminal socket; framing denied.
+const CSP =
+  "default-src 'self'; " +
+  "script-src 'self'; " +
+  "style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data:; " +
+  "font-src 'self' data:; " +
+  "connect-src 'self' ws: wss:; " +
+  "base-uri 'none'; " +
+  "form-action 'self'; " +
+  "frame-ancestors 'none'";
+
+function secHeaders(extra = {}) {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    ...extra,
+  };
+}
+
+// Reject cross-origin browser requests (CSRF / DNS-rebinding). Native apps / CLI omit Origin.
+function originAllowed(req, cfg) {
+  const origin = req.headers.origin;
+  if (!origin) return true; // native app / curl / non-browser
+  try {
+    const o = new URL(origin);
+    if (o.host === (req.headers.host || "")) return true; // same host we served from
+    if (o.hostname === "localhost" || o.hostname === "127.0.0.1") return true;
+    return (cfg.allowedOrigins || []).includes(origin);
+  } catch {
+    return false;
+  }
+}
+
 // One subscriber per (connection, session). Owns flow control for that stream.
 class Subscriber {
   constructor(ws, sessionId) {
@@ -105,7 +142,13 @@ function serveStatic(req, res) {
     }
   }
   const ext = path.extname(filePath).toLowerCase();
-  res.writeHead(200, { "content-type": CONTENT_TYPES[ext] || "application/octet-stream" });
+  const headers = secHeaders({
+    "content-type": CONTENT_TYPES[ext] || "application/octet-stream",
+    "Content-Security-Policy": CSP,
+  });
+  if (ext === ".html") headers["Cache-Control"] = "no-store";
+  else if (rel.startsWith("assets/")) headers["Cache-Control"] = "public, max-age=31536000, immutable";
+  res.writeHead(200, headers);
   fs.createReadStream(filePath).pipe(res);
 }
 
@@ -131,13 +174,18 @@ export async function runServer() {
   const server = http.createServer(async (req, res) => {
     const ip = req.socket.remoteAddress || "?";
     if (req.method === "GET" && req.url?.startsWith("/v1/health")) {
-      res.writeHead(200, { "content-type": "application/json" });
+      res.writeHead(200, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
       res.end(JSON.stringify({ ok: true, daemonId: daemon.daemonId, protocol: 1 }));
       return;
     }
     if (req.method === "POST" && req.url?.startsWith("/v1/pair")) {
+      if (!originAllowed(req, cfg)) {
+        res.writeHead(403, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+        res.end(JSON.stringify({ ok: false, error: "forbidden origin" }));
+        return;
+      }
       if (isBlocked(ip)) {
-        res.writeHead(429, { "content-type": "application/json" });
+        res.writeHead(429, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end(JSON.stringify({ ok: false, error: "too many attempts" }));
         return;
       }
@@ -145,7 +193,8 @@ export async function runServer() {
       try {
         data = JSON.parse((await readBody(req)) || "{}");
       } catch {
-        res.writeHead(400).end('{"ok":false,"error":"bad json"}');
+        res.writeHead(400, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+        res.end('{"ok":false,"error":"bad json"}');
         return;
       }
       const secret = String(data.pairSecret || "");
@@ -153,13 +202,13 @@ export async function runServer() {
         const token = randomToken();
         const device = addDevice({ deviceName: data.deviceName, token });
         recordSuccess(ip);
-        res.writeHead(200, { "content-type": "application/json" });
+        res.writeHead(200, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end(
           JSON.stringify({ ok: true, deviceId: device.deviceId, token, daemonId: daemon.daemonId })
         );
       } else {
         recordFail(ip);
-        res.writeHead(401, { "content-type": "application/json" });
+        res.writeHead(401, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end(JSON.stringify({ ok: false, error: "invalid or expired pairing code" }));
       }
       return;
@@ -172,6 +221,11 @@ export async function runServer() {
   server.on("upgrade", (req, socket, head) => {
     const url = (req.url || "").split("?")[0];
     if (url !== "/v1/ws") {
+      socket.destroy();
+      return;
+    }
+    if (!originAllowed(req, cfg)) {
+      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();
       return;
     }
@@ -373,6 +427,14 @@ export async function runServer() {
   console.log(`cordlessd listening on http://${cfg.bindHost}:${cfg.port}  (daemon ${daemon.daemonId})`);
   console.log(`  client:  ${fs.existsSync(path.join(PUBLIC_DIR, "index.html")) ? "served from public/" : "NOT BUILT — run `npm run build` in client/"}`);
   console.log(`  pair a device:  cordless pair`);
+  if (typeof process.getuid === "function" && process.getuid() === 0) {
+    console.warn("  ! WARNING: running as root. Run cordlessd as your normal user — a paired device has full shell access.");
+  }
+  if (cfg.bindHost === "0.0.0.0" || cfg.bindHost === "::") {
+    console.warn("  ! NOTE: bound to all interfaces. Access is gated by per-device tokens, but for remote use");
+    console.warn("          prefer Tailscale + an ACL limiting :" + cfg.port + " to your own devices, and keep this");
+    console.warn("          port off the public internet. Set bindHost in ~/.cordless/config.json to restrict.");
+  }
 }
 
 function safeSend(ws, frame) {
