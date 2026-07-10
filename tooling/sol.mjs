@@ -11,12 +11,28 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 
-const ENDPOINT = "https://REDACTED-AZURE-RESOURCE.cognitiveservices.azure.com";
-const DEPLOYMENT = "gpt-5.6-sol";
-const API_VERSION = "2025-04-01-preview";
-
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const CONV = path.join(dir, "sol_conversation.json");
+
+// Azure endpoint/deployment are NOT hardcoded (they're your private resource). Provide them via
+// env (CORDLESS_AZURE_ENDPOINT / CORDLESS_SOL_DEPLOYMENT / CORDLESS_AZURE_API_VERSION) or a
+// gitignored tooling/sol.local.json { "endpoint": "...", "deployment": "...", "apiVersion": "..." }.
+function solConfig() {
+  let cfg = {};
+  const local = path.join(dir, "sol.local.json");
+  if (fs.existsSync(local)) {
+    try { cfg = JSON.parse(fs.readFileSync(local, "utf8")); } catch { /* ignore */ }
+  }
+  const endpoint = process.env.CORDLESS_AZURE_ENDPOINT || cfg.endpoint;
+  const deployment = process.env.CORDLESS_SOL_DEPLOYMENT || cfg.deployment || "gpt-5.6-sol";
+  const apiVersion = process.env.CORDLESS_AZURE_API_VERSION || cfg.apiVersion || "2025-04-01-preview";
+  if (!endpoint) {
+    console.error("Set CORDLESS_AZURE_ENDPOINT (or create tooling/sol.local.json with {endpoint,deployment}).");
+    process.exit(1);
+  }
+  return { endpoint: endpoint.replace(/\/$/, ""), deployment, apiVersion };
+}
+const SOL = solConfig();
 
 function token() {
   if (process.env.AZ_TOKEN) return process.env.AZ_TOKEN;
@@ -43,7 +59,7 @@ if (!fs.existsSync(CONV)) {
 const conv = JSON.parse(fs.readFileSync(CONV, "utf8"));
 conv.push({ role: "user", content: message });
 
-const url = `${ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=${API_VERSION}`;
+const url = `${SOL.endpoint}/openai/deployments/${SOL.deployment}/chat/completions?api-version=${SOL.apiVersion}`;
 const res = await fetch(url, {
   method: "POST",
   headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
