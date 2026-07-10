@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- cordless speaks ws:// to your dev box over Tailscale/LAN (WireGuard already encrypts the
+     transport). Cleartext is therefore permitted. Keep the agent off the public internet. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -1,0 +1,12 @@
+{
+  "appId": "com.naveenneog.cordless",
+  "appName": "cordless",
+  "webDir": "agent/public",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

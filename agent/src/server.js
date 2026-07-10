@@ -76,6 +76,22 @@ function originAllowed(req, cfg) {
   }
 }
 
+// CORS for allow-listed cross-origin app clients (e.g. the Capacitor APK at http://localhost, or a
+// browser reaching the agent at a different origin). Scoped to the Origin allowlist above.
+function corsHeaders(req, cfg) {
+  const origin = req.headers.origin;
+  if (origin && originAllowed(req, cfg)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
+      Vary: "Origin",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "content-type",
+      "Access-Control-Max-Age": "600",
+    };
+  }
+  return {};
+}
+
 // One subscriber per (connection, session). Owns flow control for that stream.
 class Subscriber {
   constructor(ws, sessionId) {
@@ -173,8 +189,17 @@ export async function runServer() {
 
   const server = http.createServer(async (req, res) => {
     const ip = req.socket.remoteAddress || "?";
+    const cors = corsHeaders(req, cfg);
+
+    // CORS preflight
+    if (req.method === "OPTIONS") {
+      res.writeHead(originAllowed(req, cfg) ? 204 : 403, secHeaders({ ...cors, "Cache-Control": "no-store" }));
+      res.end();
+      return;
+    }
+
     if (req.method === "GET" && req.url?.startsWith("/v1/health")) {
-      res.writeHead(200, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+      res.writeHead(200, secHeaders({ ...cors, "content-type": "application/json", "Cache-Control": "no-store" }));
       res.end(JSON.stringify({ ok: true, daemonId: daemon.daemonId, protocol: 1 }));
       return;
     }
@@ -185,7 +210,7 @@ export async function runServer() {
         return;
       }
       if (isBlocked(ip)) {
-        res.writeHead(429, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+        res.writeHead(429, secHeaders({ ...cors, "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end(JSON.stringify({ ok: false, error: "too many attempts" }));
         return;
       }
@@ -193,7 +218,7 @@ export async function runServer() {
       try {
         data = JSON.parse((await readBody(req)) || "{}");
       } catch {
-        res.writeHead(400, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+        res.writeHead(400, secHeaders({ ...cors, "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end('{"ok":false,"error":"bad json"}');
         return;
       }
@@ -202,13 +227,13 @@ export async function runServer() {
         const token = randomToken();
         const device = addDevice({ deviceName: data.deviceName, token });
         recordSuccess(ip);
-        res.writeHead(200, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+        res.writeHead(200, secHeaders({ ...cors, "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end(
           JSON.stringify({ ok: true, deviceId: device.deviceId, token, daemonId: daemon.daemonId })
         );
       } else {
         recordFail(ip);
-        res.writeHead(401, secHeaders({ "content-type": "application/json", "Cache-Control": "no-store" }));
+        res.writeHead(401, secHeaders({ ...cors, "content-type": "application/json", "Cache-Control": "no-store" }));
         res.end(JSON.stringify({ ok: false, error: "invalid or expired pairing code" }));
       }
       return;

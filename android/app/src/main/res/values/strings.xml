@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">cordless</string>
+    <string name="title_activity_main">cordless</string>
+    <string name="package_name">com.naveenneog.cordless</string>
+    <string name="custom_url_scheme">com.naveenneog.cordless</string>
+</resources>

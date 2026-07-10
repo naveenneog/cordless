@@ -1,0 +1,10 @@
+# Normalize line endings; keep shell/gradlew LF, Windows scripts CRLF.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+*.jar binary
+*.apk binary
+*.png binary
+*.keystore binary
+*.woff2 binary
