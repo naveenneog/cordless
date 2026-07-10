@@ -33,3 +33,6 @@ emu-*.png
 
 # private Sol/Azure endpoint config (never publish)
 tooling/sol.local.json
+
+# Android launcher/splash resources must be committed (cap sync does not regenerate them)
+!android/**/*.png
