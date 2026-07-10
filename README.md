@@ -6,6 +6,8 @@ cordless runs a small daemon on your dev box or laptop that owns real PTY sessio
 `claude` / `codex`), and a mobile web app that attaches to them like browser tabs. Sessions keep
 running when you disconnect; reconnecting replays exactly where you left off.
 
+**Site:** [naveenneog.github.io/cordless](https://naveenneog.github.io/cordless/) · **Download:** [latest APK](https://github.com/naveenneog/cordless/releases/latest)
+
 <p align="center"><img src="docs/screenshot.png" alt="cordless" width="820"></p>
 
 - **Persistent sessions** — PTYs survive phone disconnects, network switches, and app backgrounding.
