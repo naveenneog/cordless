@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd agent for the cordless daemon (macOS).
+  Install:
+    # edit the two paths below (node and index.js) to match your machine:
+    #   which node   ->  first <string>
+    #   absolute path to cordless/agent/src/index.js  ->  second <string>
+    cp install/com.naveenneog.cordless.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.naveenneog.cordless.plist
+  Stop / remove:
+    launchctl unload -w ~/Library/LaunchAgents/com.naveenneog.cordless.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.naveenneog.cordless</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/CHANGE_ME/cordless/agent/src/index.js</string>
+    <string>start</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/cordless.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/cordless.err.log</string>
+</dict>
+</plist>

@@ -117,6 +117,11 @@ All of these came from Sol's review; keep them:
   rejected). CSP `script-src 'self'` (no inline JS), nosniff, `frame-ancestors 'none'`, `no-store` on
   credential responses. 5-fails→10-min IP block. Root/all-interfaces startup warnings.
 - Verified by `agent/test/security.mjs` (9 checks) — keep it green.
+- **Cross-origin / CORS**: the PWA is same-origin, but the Capacitor APK's WebView origin is
+  `http://localhost`, so it talks to the agent cross-origin. The server therefore does CORS scoped to
+  the Origin allowlist: echoes `Access-Control-Allow-Origin` for allowed origins, answers `OPTIONS`
+  preflight (204), and answers Private Network Access (`Access-Control-Allow-Private-Network: true`)
+  for allowed origins reaching LAN/Tailscale addresses. Disallowed origins still get 403.
 
 ## Run / build / test
 
@@ -140,14 +145,18 @@ create/type/echo, tab switch preserves content, keybar history recall, reload re
 
 ## Backlog (priority order, per Sol)
 
-1. **Android APK via Capacitor + GitHub Actions CI** — bundle client, `androidScheme:'http'` +
-   cleartext so `ws://<tailscale-ip>` works; debug-signed `cordless-vX.Y.Z.apk`. Test on a real phone
-   (Tailscale, background/foreground, keyboard resize, reconnect, token persistence, process death).
-2. **Auto-start installers** — `systemd --user`, `launchd`, Task Scheduler (separately; no fake generic).
-3. **PWA polish** — icons (real PNGs), fullscreen, safe-area, keyboard/visualViewport behavior.
-4. **Publish** — public repo `naveenneog/cordless`, PolyForm Noncommercial (call it *source-available*),
-   `docs/` GitHub Pages landing page, tagged release. Run dep audit + secret scan first.
-5. **Increments**: TLS pinning + native WS plugin, session-drawer to reopen closed tabs, server-side
+DONE this session: Android APK (Capacitor 8, `android/`, debug-signed release, emulator-tested end to
+end — pair over CORS, connect, attach, render, replay), `.github/workflows/android.yml` (tag `v*` →
+builds `cordless-vX.Y.Z.apk` → release asset), `install/` auto-start scripts (systemd/launchd/Task
+Scheduler), `docs/` GitHub Pages landing page.
+
+Remaining:
+1. **Publish** — push public repo `naveenneog/cordless`, enable Pages from `docs/`, tag a release
+   (CI attaches the APK). Run dep audit + secret scan first. Call PolyForm Noncommercial *source-available*.
+2. **Real-phone test over Tailscale** — server URL `http://<tailscale-ip>:7443` (non-loopback, http,
+   cleartext → avoids Capacitor localhost interception, emulator routing, and adb reverse). Needs
+   Windows Firewall inbound 7443 on the Tailscale interface + a tailnet ACL.
+3. **Increments**: TLS pinning + native WS plugin, session-drawer to reopen closed tabs, server-side
    `session.activity` push for exact unread, file up/download, persist transcripts across daemon restart.
 
 ## Known limitations (MVP)

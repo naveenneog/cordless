@@ -1,0 +1,63 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Capacitor (root) + client deps
+        run: |
+          npm ci
+          npm --prefix client ci
+
+      - name: Build web client (-> agent/public)
+        run: npm --prefix client run build
+
+      - name: Capacitor sync android
+        run: npx cap sync android
+
+      - name: Build release APK (debug-signed)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Name the APK
+        id: apk
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ -z "$VERSION" ] && VERSION="dev"
+          OUT="cordless-v${VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cordless-apk
+          path: ${{ steps.apk.outputs.path }}
+
+      - name: Attach APK to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
+          fail_on_unmatched_files: true

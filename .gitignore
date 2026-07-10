@@ -27,3 +27,6 @@ android/local.properties
 # release artifacts / emulator captures
 *.apk
 emu-*.png
+
+# keep docs images for the Pages landing page
+!docs/*.png

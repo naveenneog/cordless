@@ -1,0 +1,25 @@
+# systemd --user unit for the cordless agent daemon (Linux).
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp install/cordless.service ~/.config/systemd/user/cordless.service
+#   # edit ExecStart below to your absolute cordless path if it isn't ~/cordless
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cordless
+#   loginctl enable-linger "$USER"   # keep running after logout
+# Logs:   journalctl --user -u cordless -f
+
+[Unit]
+Description=cordless agent daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/cordless
+ExecStart=/usr/bin/env node %h/cordless/agent/src/index.js start
+Restart=on-failure
+RestartSec=5
+# Least privilege: run as your user (never root).
+
+[Install]
+WantedBy=default.target

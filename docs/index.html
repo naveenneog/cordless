@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cordless — remote terminals in your pocket</title>
+    <meta name="description" content="Manage many remote terminal & coding-agent (Claude Code, Codex) sessions from your phone, like browser tabs." />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <style>
+      :root {
+        --bg: #0b0e14; --bg2: #11151f; --bg3: #171c28; --line: #222a3a;
+        --fg: #c7d0e0; --muted: #7b869c; --accent: #7aa2f7; --accent2: #bb9af7; --green: #9ece6a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--fg);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6;
+      }
+      a { color: var(--accent); }
+      .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+      header { text-align: center; padding: 72px 20px 32px; }
+      .brand { font-size: 54px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
+      .tagline { font-size: 20px; color: var(--muted); margin-top: 8px; }
+      .cta { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .btn {
+        display: inline-block; padding: 12px 22px; border-radius: 10px; text-decoration: none;
+        font-weight: 700; border: 1px solid var(--line);
+      }
+      .btn.primary { background: var(--accent); color: #0b0e14; border: none; }
+      .btn.ghost { color: var(--fg); background: var(--bg3); }
+      .hero { margin: 24px auto 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+      .hero img { display: block; width: 100%; }
+      section { padding: 40px 0; }
+      h2 { font-size: 26px; margin: 0 0 18px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+      .card { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+      .card h3 { margin: 0 0 6px; font-size: 17px; }
+      .card p { margin: 0; color: var(--muted); font-size: 15px; }
+      pre {
+        background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+        overflow-x: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; color: var(--fg);
+      }
+      .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+      .shots img { width: 100%; border: 1px solid var(--line); border-radius: 12px; }
+      .note { background: var(--bg3); border: 1px solid var(--line); border-radius: 12px; padding: 16px; color: var(--muted); }
+      footer { text-align: center; color: var(--muted); padding: 40px 20px 64px; border-top: 1px solid var(--line); margin-top: 24px; }
+      @media (max-width: 640px) { .shots { grid-template-columns: 1fr; } .brand { font-size: 42px; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="brand">cordless</div>
+        <div class="tagline">Your remote terminals &amp; coding agents, in your pocket.</div>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/naveenneog/cordless">GitHub</a>
+          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases">Download APK</a>
+        </div>
+        <div class="hero"><img src="./screenshot.png" alt="cordless managing terminal sessions as tabs" /></div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <section>
+        <h2>What it is</h2>
+        <p style="color: var(--muted); max-width: 720px">
+          cordless runs a tiny daemon on your dev box or laptop that owns real PTY sessions — a shell, or
+          <code>claude</code> / <code>codex</code>. A mobile app attaches to them like browser tabs. Sessions keep
+          running when you disconnect; reconnecting replays right where you left off.
+        </p>
+      </section>
+
+      <section>
+        <div class="grid">
+          <div class="card"><h3>Persistent sessions</h3><p>PTYs survive disconnects, network switches, and app backgrounding. Reconnect replays from your last-seen byte, or a full-screen snapshot.</p></div>
+          <div class="card"><h3>Tabs for terminals</h3><p>Run several Claude Code / Codex / shell sessions at once and switch instantly.</p></div>
+          <div class="card"><h3>Touch-first</h3><p>An on-screen key bar — Esc, Tab, Ctrl/Alt, arrows, Ctrl-C, pipes, paste — makes a real terminal usable with thumbs.</p></div>
+          <div class="card"><h3>Reach it anywhere</h3><p>Tailscale is the recommended path; same-Wi-Fi LAN also works. No ports exposed to the internet.</p></div>
+          <div class="card"><h3>Secure by default</h3><p>Per-device tokens, single-use QR pairing, Origin allowlist, CSP, and a daemon that only ever runs as you.</p></div>
+          <div class="card"><h3>Web or native</h3><p>Install the PWA from your phone browser, or grab the Android APK.</p></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Quick start</h2>
+        <pre># on your dev box / laptop
+git clone https://github.com/naveenneog/cordless
+cd cordless
+npm run setup      # installs agent + client deps
+npm run build      # builds the web client
+npm start          # starts the daemon on :7443
+
+# in another terminal — pair your phone
+npm run pair       # scan the QR with your phone camera</pre>
+        <p style="color: var(--muted)">
+          Scanning the QR opens the app in your phone browser and pairs automatically. For access from
+          anywhere, install <a href="https://tailscale.com">Tailscale</a> on both devices.
+        </p>
+      </section>
+
+      <section>
+        <h2>On your phone</h2>
+        <div class="shots">
+          <img src="./screenshot-pairing.png" alt="pairing screen" />
+          <img src="./screenshot-keybar.png" alt="terminal with touch key bar" />
+        </div>
+      </section>
+
+      <section>
+        <div class="note">
+          <strong>Security:</strong> a paired device has the same shell access as your user account — treat its
+          token like an SSH key. cordless uses per-device hashed tokens, single-use rate-limited pairing, an
+          Origin allowlist, and strict security headers, and never runs as root. Keep port 7443 off the public
+          internet; use Tailscale + an ACL.
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <div class="wrap">
+        <a href="https://github.com/naveenneog/cordless">github.com/naveenneog/cordless</a>
+        &nbsp;·&nbsp; <a href="https://github.com/naveenneog/cordless/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a>
+        (source-available)
+      </div>
+    </footer>
+  </body>
+</html>

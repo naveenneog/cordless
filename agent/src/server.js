@@ -81,13 +81,19 @@ function originAllowed(req, cfg) {
 function corsHeaders(req, cfg) {
   const origin = req.headers.origin;
   if (origin && originAllowed(req, cfg)) {
-    return {
+    const h = {
       "Access-Control-Allow-Origin": origin,
       Vary: "Origin",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "600",
     };
+    // Private Network Access: Chromium/WebView preflights reaching a LAN/Tailscale/loopback
+    // address require this on the response (allowed origins only).
+    if (req.headers["access-control-request-private-network"] === "true") {
+      h["Access-Control-Allow-Private-Network"] = "true";
+    }
+    return h;
   }
   return {};
 }
