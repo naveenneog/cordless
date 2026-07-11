@@ -25,9 +25,13 @@ import { SessionManager } from "./sessions.js";
 import { isBlocked, recordFail, recordSuccess, authenticate, isLoopback } from "./auth.js";
 import { discoverHosts } from "./pairing.js";
 import { VERSION } from "./version.js";
+import { IS_SEA } from "./runtime.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.join(__dirname, "..", "public");
+// In a SEA build the web client ships beside the exe under resources/public; in dev it's ../public.
+const __dirname = IS_SEA ? path.dirname(process.execPath) : path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DIR = IS_SEA
+  ? path.join(path.dirname(process.execPath), "resources", "public")
+  : path.join(__dirname, "..", "public");
 
 const MAX_WS_BUFFER = 4 * 1024 * 1024;
 const NO_ACK_MS = 30_000;

@@ -6,12 +6,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawn } from "node:child_process";
 import { HOME, ensureHome } from "./state.js";
+import { IS_SEA } from "./runtime.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = IS_SEA ? path.dirname(process.execPath) : path.dirname(fileURLToPath(import.meta.url));
 const ENTRY = path.join(__dirname, "index.js");
 const NODE = process.execPath;
 const PIDFILE = path.join(HOME, "daemon.pid");
 const LOG = path.join(HOME, "daemon.log");
+
+// How to launch the foreground daemon: a packaged exe runs itself; dev runs `node index.js`.
+function daemonCmd() {
+  return IS_SEA ? [NODE, ["start", "--foreground"]] : [NODE, [ENTRY, "start", "--foreground"]];
+}
 
 // ---- single-instance lock ----
 function processAlive(pid) {
@@ -54,10 +60,9 @@ export function startDaemonDetached() {
   const existing = runningPid();
   if (existing) return existing;
   ensureHome();
-  const isSea = !fs.existsSync(ENTRY);
-  const argv = isSea ? ["start", "--foreground"] : [ENTRY, "start", "--foreground"];
+  const [bin, argv] = daemonCmd();
   const outFd = fs.openSync(LOG, "a");
-  const child = spawn(NODE, argv, { detached: true, stdio: ["ignore", outFd, outFd], windowsHide: true });
+  const child = spawn(bin, argv, { detached: true, stdio: ["ignore", outFd, outFd], windowsHide: true });
   child.unref();
   return child.pid;
 }
@@ -101,7 +106,9 @@ export function uninstallService() {
 function installWindows() {
   const cmdFile = path.join(HOME, "cordless-run.cmd");
   const vbsFile = path.join(HOME, "cordless-launch.vbs");
-  fs.writeFileSync(cmdFile, `@echo off\r\n"${NODE}" "${ENTRY}" start --foreground >> "${LOG}" 2>&1\r\n`);
+  const [bin, argv] = daemonCmd();
+  const cmdline = [bin, ...argv].map((a) => `"${a}"`).join(" ");
+  fs.writeFileSync(cmdFile, `@echo off\r\n${cmdline} >> "${LOG}" 2>&1\r\n`);
   // Run the .cmd fully hidden (window style 0) so nothing flashes at logon.
   fs.writeFileSync(vbsFile, `CreateObject("Wscript.Shell").Run """${cmdFile}""", 0, False\r\n`);
   execFileSync(
@@ -141,6 +148,7 @@ function uninstallWindows() {
 function installLinux() {
   const dir = path.join(os.homedir(), ".config", "systemd", "user");
   fs.mkdirSync(dir, { recursive: true });
+  const [bin, argv] = daemonCmd();
   const unit = `[Unit]
 Description=cordless agent daemon
 After=network-online.target
@@ -148,7 +156,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${NODE} ${ENTRY} start --foreground
+ExecStart=${[bin, ...argv].join(" ")}
 Restart=on-failure
 RestartSec=5
 
@@ -190,13 +198,15 @@ function macPlistPath() {
   return path.join(os.homedir(), "Library", "LaunchAgents", "com.naveenneog.cordless.plist");
 }
 function installMac() {
+  const [bin, argv] = daemonCmd();
+  const progArgs = [bin, ...argv].map((a) => `<string>${a}</string>`).join("");
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.naveenneog.cordless</string>
   <key>ProgramArguments</key>
-  <array><string>${NODE}</string><string>${ENTRY}</string><string>start</string><string>--foreground</string></array>
+  <array>${progArgs}</array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${LOG}</string>

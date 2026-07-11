@@ -12,7 +12,7 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import pty from "node-pty";
+import pty from "./pty-loader.js";
 import xtermHeadless from "@xterm/headless";
 import addonSerialize from "@xterm/addon-serialize";
 import { out } from "./protocol.js";

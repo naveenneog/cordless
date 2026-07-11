@@ -3,6 +3,8 @@ node_modules/
 
 # build output (client is built into agent/public; rebuild with `npm run build`)
 agent/public/
+# self-contained CLI build output
+agent/dist-sea/
 
 # local runtime state / tests
 .testhome/

@@ -1,6 +1,6 @@
 {
   "name": "cordlessd",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "cordless agent daemon — manages remote PTY/coding-agent sessions",
@@ -11,7 +11,8 @@
     "start": "node src/index.js start",
     "pair": "node src/index.js pair",
     "devices": "node src/index.js devices",
-    "test": "node test/run.mjs"
+    "test": "node test/run.mjs",
+    "sea": "node build/sea.mjs"
   },
   "dependencies": {
     "@xterm/addon-serialize": "^0.13.0",
@@ -23,5 +24,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "postject": "^1.0.0-alpha.6"
   }
 }
