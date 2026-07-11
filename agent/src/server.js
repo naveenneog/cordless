@@ -15,6 +15,7 @@ import {
   addDevice,
   consumePendingPair,
   randomToken,
+  ensureDesktopCredential,
 } from "./state.js";
 import { ClientMessage, out } from "./protocol.js";
 import { SessionManager } from "./sessions.js";
@@ -192,6 +193,7 @@ export async function runServer() {
   const daemon = loadDaemon();
   const mgr = new SessionManager(cfg);
   mgr.restore();
+  ensureDesktopCredential(cfg.port); // local credential for the desktop app (auto-pair on loopback)
   const connections = new Set();
 
   const server = http.createServer(async (req, res) => {
@@ -303,7 +305,7 @@ export async function runServer() {
           ws.close(4401, "blocked");
           return;
         }
-        const device = authenticate(m.deviceId, m.token);
+        const device = authenticate(m.deviceId, m.token, ip);
         if (!device) {
           recordFail(ip);
           safeSend(ws, out.error("hello.result", m.requestId, "unauthorized", "invalid device or token"));

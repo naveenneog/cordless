@@ -28,9 +28,14 @@ cordless/
       pairing.js             # `cordless pair` — QR + single-use secret + Tailscale/LAN URL discovery
     public/                  # built web client (gitignored; produced by `npm --prefix client run build`)
     test/
+      run.mjs                # `npm test` harness: boots an isolated daemon, runs every suite,
+                             #   incl. desktop credential + restore-across-restart
       pty_smoke.mjs          # node-pty sanity
       e2e.mjs                # full protocol E2E against a live daemon
       security.mjs           # header + Origin + pairing security checks
+      desktop.mjs            # loopback desktop-credential auth over 127.0.0.1
+      desktop_scope.mjs      # loopback-scoped token rejected from non-loopback IPs
+      restore.mjs            # session restore across a daemon restart (create|check)
   client/                    # web app (Vite + React + TS + @xterm/xterm), built into agent/public
     src/
       App.tsx                # workspace shell (topbar, tabs, terminal stack, keybar, sheet)
@@ -38,7 +43,15 @@ cordless/
       lib/protocol.ts        # wire types + PROFILES
       lib/storage.ts         # creds + server base + ws url helpers
       components/            # Pairing, TabStrip, TerminalPane, KeyBar, NewSessionSheet
-    public/                  # manifest.webmanifest, icon.svg
+    public/                  # manifest.webmanifest + the >_< PNG icons (favicon/apple-touch/maskable)
+  desktop/                   # cordless Desktop — hardened Electron shell for the LOCAL daemon
+    main.js                  # secure BrowserWindow, health-check→fallback, IPC (credential/start/retry)
+    preload.js               # narrow contextBridge: { platform, getLocalCredential, startDaemon, retry }
+    fallback.html            # "daemon not running → Start daemon / Retry" screen
+    lib/resolve.js           # pure, testable loopback-server validation + origin precedence
+    test/resolve.test.mjs    # 24 unit checks for the credential/origin parsing
+    build/icon.png           # 1024px app icon (from the >_< logo)
+    package.json             # electron + electron-builder (win nsis/portable, mac dmg/zip, linux AppImage/deb)
   tooling/
     sol.mjs                  # stateful GPT-5.6 Sol conversation (append user+assistant each turn)
     sol_conversation.json    # the running transcript (gitignored)
@@ -117,6 +130,12 @@ All of these came from Sol's review; keep them:
   rejected). CSP `script-src 'self'` (no inline JS), nosniff, `frame-ancestors 'none'`, `no-store` on
   credential responses. 5-fails→10-min IP block. Root/all-interfaces startup warnings.
 - Verified by `agent/test/security.mjs` (9 checks) — keep it green.
+- **Loopback desktop credential** (v0.5): `ensureDesktopCredential(port)` writes
+  `~/.cordless/desktop-credential.json` (mode 0600, plaintext token; daemon stores only the hash) and
+  creates a `scope:"loopback"` device. `authenticate(deviceId, token, ip)` accepts that token **only**
+  when the socket peer is `127.0.0.1`/`::1` — a Tailscale/LAN IP is rejected. QR pairing stays the app's
+  default auth; the desktop's "Connect to this computer" button is an explicit opt-in only. Verified by
+  `agent/test/desktop.mjs` + `desktop_scope.mjs`.
 - **Cross-origin / CORS**: the PWA is same-origin, but the Capacitor APK's WebView origin is
   `http://localhost`, so it talks to the agent cross-origin. The server therefore does CORS scoped to
   the Origin allowlist: echoes `Access-Control-Allow-Origin` for allowed origins, answers `OPTIONS`
@@ -130,7 +149,9 @@ npm run setup      # agent + client install
 npm run build      # client -> agent/public
 npm start          # daemon (or: npm run up  = build + start)
 npm run pair       # pairing QR
-npm test           # e2e.mjs + security.mjs  (set CORDLESS_HOME to isolate)
+npm test           # boots an isolated daemon + runs every suite (pty, e2e, security,
+                   #   desktop credential + scope, restore-across-restart). Hermetic temp homes.
+npm --prefix desktop test   # desktop credential/origin parsing unit tests (24 checks)
 ```
 
 Verified working: Windows dev box, Node 26, pwsh.exe auto-detected; browser (Chromium via Playwright)
@@ -172,6 +193,27 @@ Remaining:
   → confirm host → pair. Camera permission + a `cordless://pair?server=…#pair=…` deep-link intent-filter
   in the manifest; `cordless pair` also prints the deep link. (In-app scanner verified on emulator;
   deep-link `appUrlOpen` is wired but not confirmed via `adb am start` — should work from a real camera app.)
+
+### v0.5 additions (this session, tested)
+- **Brand logo**: a framed `>_<` mark generated with **gpt-image-2** (`tooling/gen_logo.py` → sources in
+  `tooling/logo/{icon,mark}.png`; `tooling/apply_logo.py` resizes into every web + Android size and
+  luminance-keys the adaptive-icon foreground since gpt-image-2 can't do transparent backgrounds).
+  Applied to the PWA (`icon-192/512`, maskable, apple-touch, favicons), the landing-page hero, and the
+  Android launcher/adaptive/splash. **Gitignore fix**: the global `*.png` rule was silently dropping the
+  new client/desktop icons — added `!client/public/*.png`, `!desktop/build/*.png`, `!tooling/logo/*.png`.
+- **Desktop app** (`desktop/`, approved with Sol): hardened Electron shell that loads the LOCAL daemon's
+  served page at `http://127.0.0.1:<port>` (same-origin → zero CORS/CSP changes). `contextIsolation` on,
+  `nodeIntegration` off, `sandbox` on; `setWindowOpenHandler` deny, `will-navigate` pinned to the trusted
+  origin, all permissions + webviews denied. Preload exposes only `{ platform, getLocalCredential,
+  startDaemon, retry }`; IPC verifies the sender is a trusted page; `startDaemon` takes no renderer input
+  and resolves the CLI via `where`/`which`. Health-checks the daemon → `fallback.html` (Start daemon /
+  Retry) when down. Port precedence: credential.server → config.port → 7443, all loopback-validated.
+  `.github/workflows/desktop.yml` builds win/mac/linux installers on native runners on tag.
+- **QR-first auth preserved**: the earlier desktop auto-connect was removed; `Pairing.tsx` now only shows
+  an explicit **🖥️ Connect to this computer** button when `window.cordless.getLocalCredential()` (the
+  Electron bridge) returns a credential — plain browsers see QR/code only.
+- **Test harness**: `agent/test/run.mjs` makes `npm test` actually self-contained (previously it invoked
+  daemon-dependent scripts with no daemon). 7/7 suites green on Windows/Node 26.
 
 ## Known limitations (MVP)
 

@@ -7,6 +7,7 @@ agent/public/
 # local runtime state / tests
 .testhome/
 *.log
+agent/test/.restore-state.json
 
 # playwright artifacts
 .playwright-mcp/
@@ -31,8 +32,16 @@ emu-*.png
 # keep docs images for the Pages landing page
 !docs/*.png
 
+# keep app icons/logos that the web build, Electron app and logo pipeline need
+!client/public/*.png
+!desktop/build/*.png
+!tooling/logo/*.png
+
 # private Sol/Azure endpoint config (never publish)
 tooling/sol.local.json
 
 # Android launcher/splash resources must be committed (cap sync does not regenerate them)
 !android/**/*.png
+
+# electron-builder output
+desktop/release/

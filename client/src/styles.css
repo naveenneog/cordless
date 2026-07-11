@@ -401,6 +401,20 @@ button.primary:disabled {
 .scan:disabled {
   opacity: 0.5;
 }
+.local-connect {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  background: transparent;
+  color: var(--green);
+  border: 1px solid var(--green);
+  margin-top: 8px;
+}
+.local-connect:disabled {
+  opacity: 0.5;
+}
 .error {
   color: var(--red);
   font-size: 13px;

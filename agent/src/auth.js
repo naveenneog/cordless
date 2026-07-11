@@ -24,10 +24,18 @@ export function recordSuccess(ip) {
   fails.delete(ip);
 }
 
-// Verify a hello frame. Returns the device record or null.
-export function authenticate(deviceId, token) {
+function isLoopback(ip) {
+  if (!ip) return false;
+  const a = String(ip).replace(/^::ffff:/, "");
+  return a === "::1" || a === "127.0.0.1" || a.startsWith("127.");
+}
+
+// Verify a hello frame. Returns the device record or null. Loopback-scoped tokens (the desktop
+// app's local credential) are only accepted from 127.0.0.1 / ::1.
+export function authenticate(deviceId, token, ip) {
   const device = findActiveDevice(deviceId, token);
   if (!device) return null;
+  if (device.scope === "loopback" && !isLoopback(ip)) return null;
   touchDevice(deviceId);
   return device;
 }

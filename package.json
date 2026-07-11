@@ -1,6 +1,6 @@
 {
   "name": "cordless",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Manage many remote terminal / coding-agent (Claude Code, Codex) sessions from your phone — like browser tabs.",
   "scripts": {
@@ -10,7 +10,7 @@
     "up": "npm run build && npm run start",
     "pair": "node agent/src/index.js pair",
     "devices": "node agent/src/index.js devices",
-    "test": "node agent/test/e2e.mjs && node agent/test/security.mjs"
+    "test": "npm --prefix agent test"
   },
   "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
   "dependencies": {

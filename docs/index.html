@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>cordless — remote terminals in your pocket</title>
     <meta name="description" content="Manage many remote terminal & coding-agent (Claude Code, Codex) sessions from your phone, like browser tabs." />
-    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="icon" type="image/png" href="./icon.png" />
     <style>
       :root {
         --bg: #0b0e14; --bg2: #11151f; --bg3: #171c28; --line: #222a3a;
@@ -52,11 +52,13 @@
   <body>
     <header>
       <div class="wrap">
+        <img src="./icon.png" alt="cordless logo" width="96" height="96" style="border-radius:22px;display:block;margin:0 auto 14px;box-shadow:0 10px 30px rgba(0,0,0,.5)" />
         <div class="brand">cordless</div>
         <div class="tagline">Your remote terminals &amp; coding agents, in your pocket.</div>
         <div class="cta">
           <a class="btn primary" href="https://github.com/naveenneog/cordless">GitHub</a>
-          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases">Download APK</a>
+          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases/latest">Download APK</a>
+          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases/latest">Desktop app</a>
         </div>
         <div class="hero"><img src="./screenshot.png" alt="cordless managing terminal sessions as tabs" /></div>
       </div>
@@ -79,7 +81,7 @@
           <div class="card"><h3>Touch-first</h3><p>An on-screen key bar — Esc, Tab, Ctrl/Alt, arrows, Ctrl-C, pipes, paste — makes a real terminal usable with thumbs.</p></div>
           <div class="card"><h3>Reach it anywhere</h3><p>Tailscale is the recommended path; same-Wi-Fi LAN also works. No ports exposed to the internet.</p></div>
           <div class="card"><h3>Secure by default</h3><p>Per-device tokens, single-use QR pairing, Origin allowlist, CSP, and a daemon that only ever runs as you.</p></div>
-          <div class="card"><h3>Web or native</h3><p>Install the PWA from your phone browser, or grab the Android APK.</p></div>
+          <div class="card"><h3>Web, native &amp; desktop</h3><p>Install the PWA from your phone browser, grab the Android APK, or run the hardened Electron desktop app on Windows / macOS / Linux.</p></div>
         </div>
       </section>
 
@@ -160,6 +162,29 @@ npm run pair       # prints a QR + a pairing code</pre>
         </p>
       </section>
 
+      <section>
+        <h2>Desktop app</h2>
+        <p style="color: var(--muted); max-width: 720px">
+          A hardened <strong>Electron</strong> shell opens the cordless UI in its own window on your
+          laptop or dev box, talking to your <strong>local</strong> daemon. Same sessions, tabs, and replay
+          as the phone — with a real keyboard.
+        </p>
+        <div class="grid">
+          <div class="card"><h3>QR-first auth</h3><p>Pairing stays QR/code based. The desktop adds one extra <strong>🖥️ Connect to this computer</strong> button backed by a loopback-only credential.</p></div>
+          <div class="card"><h3>Loopback only</h3><p>That credential lives in <code>~/.cordless/desktop-credential.json</code> (mode 0600) and is rejected for any non-loopback address — even a Tailscale IP. Never a remote bypass.</p></div>
+          <div class="card"><h3>Not running? No blank window</h3><p>If the daemon is down, the app shows a <strong>Start daemon / Retry</strong> screen instead of failing silently.</p></div>
+        </div>
+        <p style="color: var(--muted); margin-top: 14px">
+          Grab an installer from
+          <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a>
+          (Windows <code>.exe</code>, macOS <code>.dmg</code>, Linux <code>.AppImage</code>/<code>.deb</code>),
+          or build it yourself:
+        </p>
+        <pre>cd desktop
+npm install
+npm start          # run against your local daemon
+npm run dist       # package installers into desktop/release/</pre>
+      </section>
 
       <section>
         <h2>On your phone</h2>
@@ -173,8 +198,9 @@ npm run pair       # prints a QR + a pairing code</pre>
         <div class="note">
           <strong>Security:</strong> a paired device has the same shell access as your user account — treat its
           token like an SSH key. cordless uses per-device hashed tokens, single-use rate-limited pairing, an
-          Origin allowlist, and strict security headers, and never runs as root. Keep port 7443 off the public
-          internet; use Tailscale + an ACL.
+          Origin allowlist, and strict security headers, and never runs as root. The desktop app's local
+          shortcut uses a loopback-scoped token that is rejected for any non-loopback address. Keep port 7443
+          off the public internet; use Tailscale + an ACL.
         </div>
       </section>
     </div>

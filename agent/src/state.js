@@ -92,12 +92,13 @@ export function loadDevices() {
 export function saveDevices(list) {
   writeJSON(P.devices, list);
 }
-export function addDevice({ deviceName, token }) {
+export function addDevice({ deviceName, token, scope }) {
   const list = loadDevices();
   const device = {
     deviceId: crypto.randomUUID(),
     deviceName: deviceName || "unnamed device",
     tokenHash: sha256(token),
+    scope: scope || "device",
     createdAt: new Date().toISOString(),
     lastSeenAt: null,
     revokedAt: null,
@@ -105,6 +106,37 @@ export function addDevice({ deviceName, token }) {
   list.push(device);
   saveDevices(list);
   return device;
+}
+export function findDeviceById(deviceId) {
+  return loadDevices().find((x) => x.deviceId === deviceId && !x.revokedAt) || null;
+}
+
+// A loopback-scoped credential the local desktop app auto-connects with (no QR pairing).
+// The plaintext token lives only in this 0600 file; the daemon stores just its hash.
+export function ensureDesktopCredential(port) {
+  const file = path.join(HOME, "desktop-credential.json");
+  const existing = readJSON(file, null);
+  if (existing && existing.deviceId && existing.token && findDeviceById(existing.deviceId)) {
+    if (existing.port !== port) {
+      existing.port = port;
+      existing.server = `http://127.0.0.1:${port}`;
+      writeJSON(file, existing);
+    }
+    return existing;
+  }
+  const token = randomToken();
+  const device = addDevice({ deviceName: "cordless Desktop (local)", token, scope: "loopback" });
+  const cred = { deviceId: device.deviceId, token, port, server: `http://127.0.0.1:${port}` };
+  ensureHome();
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(cred, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, file);
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    /* windows */
+  }
+  return cred;
 }
 export function findActiveDevice(deviceId, token) {
   const list = loadDevices();

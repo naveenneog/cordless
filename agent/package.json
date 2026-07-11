@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node src/index.js start",
     "pair": "node src/index.js pair",
-    "devices": "node src/index.js devices"
+    "devices": "node src/index.js devices",
+    "test": "node test/run.mjs"
   },
   "dependencies": {
     "@xterm/addon-serialize": "^0.13.0",

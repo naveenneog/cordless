@@ -1,0 +1,52 @@
+{
+  "name": "cordless-desktop",
+  "version": "0.5.0",
+  "private": true,
+  "description": "cordless Desktop — hardened Electron shell for the local cordless daemon",
+  "author": "naveenneog",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/resolve.test.mjs",
+    "dist": "electron-builder --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:linux": "electron-builder --linux --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.naveenneog.cordless.desktop",
+    "productName": "cordless",
+    "copyright": "Copyright naveenneog",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "artifactName": "cordless-desktop-${version}-${os}-${arch}.${ext}",
+    "files": ["main.js", "preload.js", "fallback.html", "lib/**", "build/icon.png"],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Development",
+      "icon": "build/icon.png",
+      "maintainer": "naveenneog"
+    }
+  }
+}

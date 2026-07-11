@@ -15,6 +15,29 @@ export function Pairing({
   const [error, setError] = useState("");
   const autoTried = useRef(false);
   const native = isNativePlatform();
+  const [localCred, setLocalCred] = useState<any>(null);
+
+  useEffect(() => {
+    // Desktop (Electron) exposes a local loopback credential — offer it as an explicit one-tap
+    // connect, but QR / pairing-code auth stays the default path.
+    const bridge = (window as any).cordless;
+    if (bridge?.getLocalCredential) {
+      bridge
+        .getLocalCredential()
+        .then((c: any) => {
+          if (c && c.token && c.deviceId) setLocalCred(c);
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  function connectLocal() {
+    if (!localCred) return;
+    if (localCred.server) setServerBase(String(localCred.server).replace(/\/$/, ""));
+    const cr: Creds = { deviceId: localCred.deviceId, token: localCred.token };
+    saveCreds(cr);
+    onPaired(cr);
+  }
 
   useEffect(() => {
     // 1) same-origin PWA QR (#pair=…) auto-pair
@@ -88,6 +111,12 @@ export function Pairing({
         {native && (
           <button className="scan" onClick={onScan} disabled={busy}>
             📷 Scan QR
+          </button>
+        )}
+
+        {localCred && (
+          <button className="local-connect" onClick={connectLocal} disabled={busy}>
+            🖥️ Connect to this computer
           </button>
         )}
 
