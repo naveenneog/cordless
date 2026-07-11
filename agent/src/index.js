@@ -16,6 +16,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless stop                  stop the running daemon
   cordless status                is the daemon running?
   cordless doctor                diagnose daemon / Tailscale / firewall / profiles
+  cordless notify [status|test]  show or test attention notifications (ntfy / webhook)
 
   cordless pair                  show a single-use pairing QR/code for a new device
   cordless devices               list paired devices
@@ -71,6 +72,11 @@ async function main() {
     case "doctor": {
       const { runDoctor } = await import("./cli/commands.js");
       await runDoctor();
+      break;
+    }
+    case "notify": {
+      const { runNotify } = await import("./cli/commands.js");
+      await runNotify(args[0]);
       break;
     }
     case "pair": {

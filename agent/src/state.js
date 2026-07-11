@@ -60,6 +60,19 @@ const DEFAULT_CONFIG = {
     claude: { label: "Claude Code", initCommand: "claude" },
     codex: { label: "Codex", initCommand: "codex" },
   },
+  // Optional outbound notifications when a session needs attention. Disabled by default; no cloud
+  // owned by cordless. See agent/src/notifier.js. Topic/webhookUrl/token are secrets.
+  notifications: {
+    enabled: false,
+    provider: "ntfy", // "ntfy" | "webhook"
+    url: "https://ntfy.sh", // ntfy server base (ntfy.sh or self-hosted)
+    topic: "", // ntfy topic (required for ntfy)
+    webhookUrl: "", // required when provider is "webhook"
+    token: null, // optional bearer token
+    events: ["prompt", "bell", "finished"], // which attention transitions notify
+    quietHours: null, // e.g. { start: "22:00", end: "07:00" } (local time)
+    includePreview: false, // include the last terminal line (may leak code/secrets)
+  },
 };
 
 export function loadConfig() {
@@ -68,7 +81,12 @@ export function loadConfig() {
     writeJSON(P.config, DEFAULT_CONFIG);
     return { ...DEFAULT_CONFIG };
   }
-  return { ...DEFAULT_CONFIG, ...c, profiles: { ...DEFAULT_CONFIG.profiles, ...(c.profiles || {}) } };
+  return {
+    ...DEFAULT_CONFIG,
+    ...c,
+    profiles: { ...DEFAULT_CONFIG.profiles, ...(c.profiles || {}) },
+    notifications: { ...DEFAULT_CONFIG.notifications, ...(c.notifications || {}) },
+  };
 }
 
 // ---- Hash helpers ----

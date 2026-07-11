@@ -8,6 +8,7 @@ import { discoverHosts } from "../pairing.js";
 import { runningPid } from "../service.js";
 import { VERSION } from "../version.js";
 import { attentionRank, needsAttention } from "./render.js";
+import { Notifier } from "../notifier.js";
 
 async function withClient(fn) {
   const { health: h } = await ensureDaemon();
@@ -122,6 +123,39 @@ function commandOnPath(cmd) {
   } catch {
     return false;
   }
+}
+
+// `cordless notify status|test` — inspect or validate notification config (secrets redacted).
+export async function runNotify(sub) {
+  const n = loadConfig().notifications || {};
+  if (!sub || sub === "status") {
+    const redact = (v) => (v ? "\u2026(set)" : "(unset)");
+    console.log("\nnotifications\n");
+    console.log("  enabled   ", n.enabled ? "yes" : "no");
+    console.log("  provider  ", n.provider || "ntfy");
+    if ((n.provider || "ntfy") === "webhook") console.log("  webhook   ", redact(n.webhookUrl));
+    else {
+      console.log("  url       ", n.url || "https://ntfy.sh");
+      console.log("  topic     ", redact(n.topic));
+    }
+    console.log("  events    ", (n.events || ["prompt", "bell", "finished"]).join(", "));
+    console.log("  token     ", n.token ? "(set)" : "(none)");
+    console.log("  quietHours", n.quietHours ? `${n.quietHours.start}\u2013${n.quietHours.end}` : "(none)");
+    console.log('\n  configure in ~/.cordless/config.json under "notifications", then: cordless notify test\n');
+    return;
+  }
+  if (sub === "test") {
+    try {
+      await new Notifier(n).sendTest();
+      console.log("sent a test notification via " + (n.provider || "ntfy") + " \u2014 check your device.");
+    } catch (e) {
+      console.error("test notification failed:", e.message || e);
+      process.exit(1);
+    }
+    return;
+  }
+  console.error("usage: cordless notify [status|test]");
+  process.exit(1);
 }
 
 export async function runDoctor() {

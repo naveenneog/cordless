@@ -26,6 +26,7 @@ import { isBlocked, recordFail, recordSuccess, authenticate, isLoopback } from "
 import { discoverHosts } from "./pairing.js";
 import { VERSION } from "./version.js";
 import { IS_SEA } from "./runtime.js";
+import { Notifier } from "./notifier.js";
 
 // In a SEA build the web client ships beside the exe under resources/public; in dev it's ../public.
 const __dirname = IS_SEA ? path.dirname(process.execPath) : path.dirname(fileURLToPath(import.meta.url));
@@ -219,11 +220,31 @@ export async function runServer() {
   mgr.restore();
   ensureDesktopCredential(cfg.port); // local credential for the desktop app (auto-pair on loopback)
   const connections = new Set();
+  const notifier = new Notifier(cfg.notifications || {});
 
-  // Relay session attention/activity transitions to every authenticated client (live badges + UI).
-  mgr.startEventLoop((frame) => {
+  // Relay session attention/activity transitions to every authenticated client (live badges + UI),
+  // and fire an optional outbound notification on notify-worthy transitions (never blocking).
+  mgr.startEventLoop((frame, meta) => {
     for (const conn of connections) {
       if (conn.authed) safeSend(conn.ws, frame);
+    }
+    if (meta && meta.notify && meta.session) {
+      const s = meta.session;
+      const reason = s.attention || (s.activity === "exited" ? "exited" : null);
+      if (reason) {
+        void notifier.maybeNotify(
+          {
+            id: s.id,
+            title: s.title,
+            profile: s.profile,
+            cwd: s.cwd,
+            attentionConfidence: s.attentionConfidence,
+            attentionRevision: s.attentionRevision,
+            lastLine: s._lastLinePreview(),
+          },
+          reason
+        );
+      }
     }
   });
 
