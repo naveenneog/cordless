@@ -191,6 +191,7 @@ export async function runServer() {
   const cfg = loadConfig();
   const daemon = loadDaemon();
   const mgr = new SessionManager(cfg);
+  mgr.restore();
   const connections = new Set();
 
   const server = http.createServer(async (req, res) => {

@@ -8,6 +8,7 @@ export interface SessionSummary {
   title: string;
   profile: string;
   cwd: string;
+  generation?: string;
   state: SessionState;
   cols: number;
   rows: number;

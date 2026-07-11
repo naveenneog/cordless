@@ -16,6 +16,7 @@ import pty from "node-pty";
 import xtermHeadless from "@xterm/headless";
 import addonSerialize from "@xterm/addon-serialize";
 import { out } from "./protocol.js";
+import { loadSessionManifest, saveSessionManifest } from "./state.js";
 
 const { Terminal } = xtermHeadless;
 const { SerializeAddon } = addonSerialize;
@@ -55,9 +56,10 @@ function validCwd(cwd) {
 }
 
 class Session {
-  constructor(mgr, { profile, profileCfg, cwd, cols, rows, title }) {
+  constructor(mgr, { id, profile, profileCfg, cwd, cols, rows, title }) {
     this.mgr = mgr;
-    this.id = crypto.randomUUID();
+    this.id = id || crypto.randomUUID();
+    this.generation = crypto.randomUUID();
     this.profile = profile;
     this.cwd = validCwd(cwd);
     this.cols = cols;
@@ -272,11 +274,13 @@ class Session {
     this.signal = signal ?? null;
     const frame = out.exit(this.id, this.exitCode, this.signal);
     for (const sub of this.subscribers) sub.deliver(frame, 0);
+    this.mgr._persistManifest();
   }
 
   summary() {
     return {
       sessionId: this.id,
+      generation: this.generation,
       title: this.title,
       profile: this.profile,
       cwd: this.cwd,
@@ -322,11 +326,61 @@ export class SessionManager {
       title,
     });
     this.sessions.set(s.id, s);
+    this._persistManifest();
     return s;
   }
 
   _remove(id) {
     this.sessions.delete(id);
+    this._persistManifest();
+  }
+
+  // Persist the set of currently-running sessions so they can be reopened after a daemon
+  // restart / reboot (fresh shells in the same dirs — like a browser reopening tabs).
+  _persistManifest() {
+    if (this.cfg.restoreSessions === false) return;
+    const running = [...this.sessions.values()]
+      .filter((s) => s.state === "running")
+      .map((s) => ({ sessionId: s.id, profile: s.profile, cwd: s.cwd, title: s.title, cols: s.cols, rows: s.rows }));
+    try {
+      saveSessionManifest(running);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // On startup, relaunch the sessions that were running, preserving their ids (so mobile tabs
+  // re-match) but with a fresh generation (so clients reset replay state).
+  restore() {
+    if (this.cfg.restoreSessions === false) return;
+    let manifest = [];
+    try {
+      manifest = loadSessionManifest();
+    } catch {
+      /* ignore */
+    }
+    let n = 0;
+    for (const e of manifest) {
+      if (!e || !this.cfg.profiles[e.profile]) continue;
+      if (this.sessions.size >= this.cfg.maxSessions) break;
+      try {
+        const s = new Session(this, {
+          id: e.sessionId,
+          profile: e.profile,
+          profileCfg: this.cfg.profiles[e.profile],
+          cwd: e.cwd,
+          cols: e.cols || 100,
+          rows: e.rows || 30,
+          title: e.title,
+        });
+        this.sessions.set(s.id, s);
+        n++;
+      } catch (err) {
+        console.error("  session restore failed:", e.sessionId, err?.message || err);
+      }
+    }
+    if (n) console.log(`  restored ${n} session(s) from last run`);
+    this._persistManifest();
   }
 
   shutdown() {

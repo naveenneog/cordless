@@ -34,6 +34,9 @@ body,
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding-top: var(--safe-top);
 }
 
@@ -53,6 +56,10 @@ body,
   gap: 6px;
   font-size: 13px;
   color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .statusdot {
   width: 8px;
@@ -70,16 +77,78 @@ body,
   flex: 1;
 }
 .iconbtn {
+  flex: 0 0 auto;
   background: var(--bg3);
   color: var(--fg);
   border: 1px solid var(--line);
   border-radius: 8px;
-  width: 34px;
+  width: 33px;
   height: 34px;
-  font-size: 16px;
+  font-size: 15px;
+}
+.iconbtn:disabled {
+  opacity: 0.4;
 }
 .iconbtn.danger {
   color: var(--red);
+}
+
+/* ---- session details sheet ---- */
+.detail {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.detail-k {
+  flex: 0 0 92px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.detail-v {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--fg);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-v.wrap {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: visible;
+}
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 12px 0 0;
+}
+.detail-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.detail-actions .danger-btn,
+.detail-actions .cancel {
+  flex: 1 1 0;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  border: 1px solid var(--line);
+}
+.detail-actions .danger-btn {
+  background: transparent;
+  color: var(--red);
+}
+.detail-actions .cancel {
+  background: var(--bg3);
+  color: var(--fg);
 }
 
 /* ---- tab strip ---- */
@@ -159,12 +228,15 @@ body,
 .terminalStack {
   position: relative;
   flex: 1 1 auto;
+  min-width: 0; /* critical: lets the flex item shrink so xterm fit matches the real width */
+  min-height: 0;
   overflow: hidden;
   background: var(--bg);
 }
 .terminalPane {
   position: absolute;
   inset: 0;
+  min-width: 0;
   padding: 4px 2px 0 6px;
 }
 .terminalPane.inactive {
@@ -173,6 +245,8 @@ body,
 }
 .terminalPane .xterm {
   height: 100%;
+  width: 100%;
+  min-width: 0;
 }
 .empty {
   position: absolute;
@@ -311,6 +385,20 @@ button.primary {
   font-weight: 700;
 }
 button.primary:disabled {
+  opacity: 0.5;
+}
+.scan {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--bg3);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  margin-top: 6px;
+}
+.scan:disabled {
   opacity: 0.5;
 }
 .error {

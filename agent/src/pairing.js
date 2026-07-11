@@ -51,13 +51,16 @@ export function runPair() {
   const port = cfg.port;
   const primary = hosts[0] || "localhost";
   const mkUrl = (h) => `http://${h}:${port}/#pair=${secret}`;
+  const mkDeep = (h) => `cordless://pair?server=${encodeURIComponent(`http://${h}:${port}`)}#pair=${secret}`;
 
   console.log("\n  cordless — pair a new device  (valid 15 min, single use)\n");
   qrcode.generate(mkUrl(primary), { small: true });
-  console.log("\n  Scan the QR in your phone's browser, or open one of these URLs:\n");
-  for (const h of hosts) console.log(`    ${mkUrl(h)}`);
-  if (!hosts.length) console.log(`    ${mkUrl("localhost")}`);
-  console.log(`\n  Manual pairing code: ${secret}\n`);
+  console.log("\n  • In the cordless app: tap “Scan QR” and scan the code above.");
+  console.log("  • Or open one of these URLs in your phone's browser (PWA):\n");
+  for (const h of hosts) console.log(`      ${mkUrl(h)}`);
+  if (!hosts.length) console.log(`      ${mkUrl("localhost")}`);
+  console.log(`\n  Manual pairing code: ${secret}`);
+  console.log(`  App deep link:       ${mkDeep(primary)}\n`);
   if (!ts.length) {
     console.log("  Tip: install Tailscale on this box + your phone to reach it securely from anywhere.");
     console.log("       Then re-run `cordless pair` to get a *.ts.net URL.\n");

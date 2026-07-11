@@ -1,15 +1,34 @@
 import { useEffect, useReducer, useState } from "react";
 import { Connection } from "./lib/connection";
 import { Creds, loadCreds, clearCreds } from "./lib/storage";
+import { installDeepLinkHandler, parsePairPayload } from "./lib/scan";
 import { Pairing } from "./components/Pairing";
 import { TabStrip } from "./components/TabStrip";
 import { TerminalPane } from "./components/TerminalPane";
 import { KeyBar } from "./components/KeyBar";
 import { NewSessionSheet } from "./components/NewSessionSheet";
+import { SessionDetails } from "./components/SessionDetails";
 
 export function App() {
   const [creds, setCreds] = useState<Creds | null>(loadCreds());
-  if (!creds) return <Pairing onPaired={setCreds} />;
+  const [prefill, setPrefill] = useState<{ server: string; secret: string } | null>(null);
+
+  useEffect(() => {
+    let dispose = () => {};
+    void installDeepLinkHandler((url) => {
+      try {
+        const { serverBase, secret } = parsePairPayload(url);
+        if (!loadCreds()) setPrefill({ server: serverBase, secret });
+      } catch {
+        /* not a pairing link */
+      }
+    }).then((d) => {
+      dispose = d;
+    });
+    return () => dispose();
+  }, []);
+
+  if (!creds) return <Pairing onPaired={setCreds} prefill={prefill} />;
   return (
     <Workspace
       creds={creds}
@@ -25,6 +44,7 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
   const [conn] = useState(() => new Connection(creds));
   const [, force] = useReducer((x) => x + 1, 0);
   const [sheet, setSheet] = useState(false);
+  const [detailsFor, setDetailsFor] = useState<string | null>(null);
 
   useEffect(() => {
     conn.start();
@@ -58,18 +78,24 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
           {stateLabel}
         </span>
         <div className="spacer" />
-        <button className="iconbtn" onClick={() => conn.refreshList()} title="refresh">
-          ⟳
+        <button className="iconbtn" onClick={() => conn.adjustFont(-1)} title="smaller text">
+          A−
+        </button>
+        <button className="iconbtn" onClick={() => conn.adjustFont(1)} title="larger text">
+          A+
         </button>
         <button
-          className="iconbtn danger"
+          className="iconbtn"
+          disabled={!conn.activeId}
           onClick={() => {
-            const a = conn.activeId;
-            if (a && confirm("Kill this session?")) conn.killSession(a);
+            if (conn.activeId) setDetailsFor(conn.activeId);
           }}
-          title="kill session"
+          title="session details"
         >
-          ⏹
+          ⓘ
+        </button>
+        <button className="iconbtn" onClick={() => conn.refreshList()} title="refresh">
+          ⟳
         </button>
         <button
           className="iconbtn"
@@ -117,6 +143,22 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
           }}
         />
       )}
+
+      {detailsFor &&
+        conn.getSessionDetail(detailsFor) &&
+        (() => {
+          const d = conn.getSessionDetail(detailsFor)!;
+          return (
+            <SessionDetails
+              detail={d}
+              onClose={() => setDetailsFor(null)}
+              onKill={() => {
+                if (confirm("Kill this session?")) conn.killSession(detailsFor);
+                setDetailsFor(null);
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }

@@ -1,22 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import { Creds, saveCreds, getServerBase, setServerBase, defaultDeviceName } from "../lib/storage";
+import { isNativePlatform, scanPairingQr, parsePairPayload } from "../lib/scan";
 
-export function Pairing({ onPaired }: { onPaired: (c: Creds) => void }) {
+export function Pairing({
+  onPaired,
+  prefill,
+}: {
+  onPaired: (c: Creds) => void;
+  prefill?: { server: string; secret: string } | null;
+}) {
   const [server, setServer] = useState(getServerBase());
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const autoTried = useRef(false);
+  const native = isNativePlatform();
 
   useEffect(() => {
+    // 1) same-origin PWA QR (#pair=…) auto-pair
     const m = (location.hash || "").match(/pair=([A-Za-z0-9_-]+)/);
     if (m && !autoTried.current) {
       autoTried.current = true;
       setSecret(m[1]);
       void pair(getServerBase(), m[1]);
+      return;
+    }
+    // 2) deep-link prefill (cordless://) — fill + auto-pair
+    if (prefill && !autoTried.current) {
+      autoTried.current = true;
+      setServer(prefill.server);
+      setSecret(prefill.secret);
+      void pair(prefill.server, prefill.secret);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prefill]);
 
   async function pair(base: string, sec: string) {
     const clean = base.replace(/\/$/, "");
@@ -42,6 +59,20 @@ export function Pairing({ onPaired }: { onPaired: (c: Creds) => void }) {
     }
   }
 
+  async function onScan() {
+    setError("");
+    try {
+      const raw = await scanPairingQr();
+      const { serverBase, secret: sec } = parsePairPayload(raw);
+      setServer(serverBase);
+      setSecret(sec);
+      if (confirm(`Pair with ${serverBase}?`)) await pair(serverBase, sec);
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (!/cancel/i.test(msg)) setError(msg);
+    }
+  }
+
   return (
     <div className="pairing">
       <div className="pairing-card">
@@ -51,8 +82,15 @@ export function Pairing({ onPaired }: { onPaired: (c: Creds) => void }) {
           <li>
             On your dev box: <code>cordless pair</code>
           </li>
-          <li>Scan the QR (opens this screen), or enter the code below.</li>
+          <li>{native ? "Tap Scan QR, or enter the code below." : "Scan the QR (opens this screen), or enter the code below."}</li>
         </ol>
+
+        {native && (
+          <button className="scan" onClick={onScan} disabled={busy}>
+            📷 Scan QR
+          </button>
+        )}
+
         <label>Server</label>
         <input
           value={server}

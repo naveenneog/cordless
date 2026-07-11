@@ -13,8 +13,9 @@ running when you disconnect; reconnecting replays exactly where you left off.
 - **Persistent sessions** — PTYs survive phone disconnects, network switches, and app backgrounding.
   Reconnect replays from your last-seen byte (or a full-screen snapshot if you were away too long).
 - **Tabs for terminals** — run several Claude Code / Codex / shell sessions at once, switch instantly.
-- **Touch-first** — an on-screen key bar (Esc, Tab, Ctrl/Alt, arrows, Ctrl-C/D, pipes, paste) makes a
-  real terminal usable with thumbs.
+- **Touch-first** — an on-screen key bar (Esc, Tab, Ctrl/Alt, arrows, Ctrl-C/D, pipes, paste), pinch-free
+  font zoom (A−/A+), soft-wrapping so long lines never truncate, and a details sheet for the full cwd /
+  session id. The Android app has a built-in **QR scanner** for pairing.
 - **Reach it from anywhere** — Tailscale is the recommended path; same-Wi-Fi LAN also works.
 - **Secure by default** — per-device tokens, single-use QR pairing, Origin allowlist, CSP, and a
   daemon that only ever runs as *you*.
@@ -90,11 +91,20 @@ tunnel. Do **not** expose port `7443` on the public internet.
 ## CLI
 
 ```
-cordless start                 run the daemon (serves the app + websocket on :7443)
-cordless pair                  create a single-use pairing QR/code for a new device
-cordless devices               list paired devices
-cordless devices revoke <id>   revoke a device's token
+cordless start [--foreground]      run the daemon (serves the app + websocket on :7443)
+cordless stop                      stop the running daemon
+cordless status                    is the daemon running?
+cordless pair                      create a single-use pairing QR/code for a new device
+cordless devices                   list paired devices
+cordless devices revoke <id>       revoke a device's token
+cordless install                   run the daemon automatically at login (auto-start)
+cordless uninstall [--purge]       remove the auto-start registration
 ```
+
+**Seamless resume:** run `cordless install` once and the daemon starts hidden at login (Task
+Scheduler / systemd&nbsp;--user / launchd). Sessions that were running are **reopened** on start (fresh
+shells in the same directories, same tab ids), and the app auto-reconnects — so opening your machine
+brings your tabs back.
 
 Config and state live in `~/.cordless/` (override with `CORDLESS_HOME`): `config.json`,
 `devices.json`, `daemon.json`. Edit `config.json` to change `port`, `bindHost`, `maxSessions`,

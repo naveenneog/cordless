@@ -17,6 +17,7 @@ const MAX_QUEUED_BYTES = 1024 * 1024; // suppress a noisy background tab past th
 const REQUEST_TIMEOUT = 12000;
 const BG_CLOSE_MS = 500;
 const COLS_MIN = 20, COLS_MAX = 300, ROWS_MIN = 5, ROWS_MAX = 120;
+const FONT_MIN = 10, FONT_MAX = 24, FONT_DEFAULT = 14;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -42,6 +43,8 @@ interface Tab {
   sessionId: string;
   title: string;
   profile: string;
+  cwd: string;
+  generation: string | null;
   state: SessionState;
   exitCode: number | null;
   term: Terminal;
@@ -70,6 +73,7 @@ export interface TabView {
   sessionId: string;
   title: string;
   profile: string;
+  cwd: string;
   state: SessionState;
   exitCode: number | null;
   unread: boolean;
@@ -116,6 +120,9 @@ export class Connection {
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private backgroundCloseTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFrameAt = 0;
+  fontSize = FONT_DEFAULT;
+  private paneObserver: ResizeObserver | null = null;
+  private fitRaf = 0;
 
   activeId: string | null = null;
   tabs = new Map<string, Tab>();
@@ -130,6 +137,10 @@ export class Connection {
   constructor(creds: Creds) {
     this.creds = creds;
     this.base = getServerBase();
+    this.fontSize = clamp(Math.round(Number(localStorage.getItem("cordless.fontSize")) || FONT_DEFAULT), FONT_MIN, FONT_MAX);
+    if (typeof ResizeObserver !== "undefined") {
+      this.paneObserver = new ResizeObserver(() => this.scheduleFit());
+    }
     window.addEventListener("online", this.onOnline);
     document.addEventListener("visibilitychange", this.onVisibility);
     window.addEventListener("pagehide", this.onPageHide);
@@ -151,11 +162,59 @@ export class Connection {
       sessionId: t.sessionId,
       title: t.title,
       profile: t.profile,
+      cwd: t.cwd,
       state: t.state,
       exitCode: t.exitCode,
       unread: t.unread,
       active: t.sessionId === this.activeId,
     }));
+  }
+
+  getSessionDetail(sessionId: string) {
+    const t = this.tabs.get(sessionId);
+    if (!t) return null;
+    return {
+      sessionId: t.sessionId,
+      title: t.title,
+      cwd: t.cwd,
+      profile: t.profile,
+      state: t.state,
+      exitCode: t.exitCode,
+      host: this.base,
+    };
+  }
+
+  // ---- font zoom (per-device) ----
+  adjustFont(delta: number) {
+    this.setFontSize(this.fontSize + delta);
+  }
+  resetFont() {
+    this.setFontSize(FONT_DEFAULT);
+  }
+  setFontSize(px: number) {
+    const v = clamp(Math.round(px), FONT_MIN, FONT_MAX);
+    if (v !== this.fontSize) {
+      this.fontSize = v;
+      try { localStorage.setItem("cordless.fontSize", String(v)); } catch {}
+      for (const t of this.tabs.values()) {
+        try { t.term.options.fontSize = v; } catch {}
+      }
+      this.emit();
+    }
+    this.scheduleFit();
+  }
+
+  // Coalesced fit of the active pane (called by the ResizeObserver and viewport/font changes).
+  private scheduleFit() {
+    cancelAnimationFrame(this.fitRaf);
+    this.fitRaf = requestAnimationFrame(() => {
+      const t = this.getActiveTab();
+      const el = t?.pane;
+      if (!t || !el || el.clientWidth === 0 || el.clientHeight === 0 || document.visibilityState !== "visible") return;
+      try { t.fit.fit(); } catch {}
+      try { t.term.refresh(0, t.term.rows - 1); } catch {}
+      this.applyResize(t);
+    });
   }
 
   // ---- lifecycle ----
@@ -500,6 +559,7 @@ export class Connection {
 
   private onList(sessions: SessionSummary[]) {
     const seen = new Set<string>();
+    let generationChanged = false;
     for (const s of sessions) {
       seen.add(s.sessionId);
       if (this.locallyClosed.has(s.sessionId)) continue;
@@ -511,6 +571,18 @@ export class Connection {
       t.title = s.title;
       t.state = s.state;
       t.exitCode = s.exitCode;
+      if (s.cwd) t.cwd = s.cwd;
+      // session was restored/relaunched under the same id (new generation) -> reset replay state
+      if (s.generation && t.generation !== s.generation) {
+        t.generation = s.generation;
+        t.appliedSeq = -1;
+        t.highestReceivedSeq = -1;
+        t.attachGeneration += 1;
+        t.attachedEpoch = null;
+        t.attachingEpoch = null;
+        try { t.term.reset(); } catch {}
+        generationChanged = true;
+      }
       if (s.sessionId !== this.activeId && s.latestSeq > t.appliedSeq && !t.unread) t.unread = true;
     }
     // remove tabs whose sessions vanished from the server
@@ -521,6 +593,8 @@ export class Connection {
       }
     }
     for (const id of [...this.locallyClosed]) if (!seen.has(id)) this.locallyClosed.delete(id);
+
+    if (generationChanged) this.reconcileHotSet();
 
     if (!this.activeId && this.tabs.size) {
       // most-recently-created first (session ids are time-ordered enough for MVP)
@@ -536,7 +610,7 @@ export class Connection {
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
-      fontSize: 14,
+      fontSize: this.fontSize,
       scrollback: 5000,
       theme: TERM_THEME,
       allowProposedApi: false,
@@ -550,6 +624,8 @@ export class Connection {
       sessionId: s.sessionId,
       title: s.title,
       profile: s.profile,
+      cwd: s.cwd || "",
+      generation: s.generation ?? null,
       state: s.state,
       exitCode: s.exitCode,
       term,
@@ -659,6 +735,11 @@ export class Connection {
   }
 
   private activatePane(t: Tab) {
+    // observe only the visible pane so fit tracks its real size (keyboard, rotation, layout)
+    if (this.paneObserver && t.pane) {
+      this.paneObserver.disconnect();
+      this.paneObserver.observe(t.pane);
+    }
     requestAnimationFrame(() => {
       const el = t.pane;
       if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
@@ -686,14 +767,7 @@ export class Connection {
   }
 
   private onViewportChange = () => {
-    const t = this.getActiveTab();
-    if (!t) return;
-    requestAnimationFrame(() => {
-      const el = t.pane;
-      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
-      try { t.fit.fit(); } catch {}
-      this.applyResize(t);
-    });
+    this.scheduleFit();
   };
 
   // ---- public actions ----
@@ -788,6 +862,8 @@ export class Connection {
     this.clearReconnect();
     this.stopWatchdog();
     this.stopListPoll();
+    cancelAnimationFrame(this.fitRaf);
+    this.paneObserver?.disconnect();
     if (this.connectTimer) clearTimeout(this.connectTimer);
     if (this.backgroundCloseTimer) clearTimeout(this.backgroundCloseTimer);
     for (const [id, p] of this.pending) {

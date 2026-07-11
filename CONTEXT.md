@@ -151,13 +151,27 @@ builds `cordless-vX.Y.Z.apk` → release asset), `install/` auto-start scripts (
 Scheduler), `docs/` GitHub Pages landing page.
 
 Remaining:
-1. **Publish** — push public repo `naveenneog/cordless`, enable Pages from `docs/`, tag a release
-   (CI attaches the APK). Run dep audit + secret scan first. Call PolyForm Noncommercial *source-available*.
-2. **Real-phone test over Tailscale** — server URL `http://<tailscale-ip>:7443` (non-loopback, http,
+1. **Real-phone test over Tailscale** — server URL `http://<tailscale-ip>:7443` (non-loopback, http,
    cleartext → avoids Capacitor localhost interception, emulator routing, and adb reverse). Needs
    Windows Firewall inbound 7443 on the Tailscale interface + a tailnet ACL.
-3. **Increments**: TLS pinning + native WS plugin, session-drawer to reopen closed tabs, server-side
+2. **Increments**: TLS pinning + native WS plugin, session-drawer to reopen closed tabs, server-side
    `session.activity` push for exact unread, file up/download, persist transcripts across daemon restart.
+
+### v0.4 additions (this session, tested)
+- **Seamless resume**: `agent/src/service.js` — `cordless install|uninstall|stop|status` register OS
+  autostart (Task Scheduler hidden ONLOGON / systemd --user / launchd) + a PID lock. Session **restore**:
+  `SessionManager` persists a manifest (`~/.cordless/sessions.json`) of running sessions and relaunches
+  them on start with the SAME id + a NEW `generation`; the client resets `appliedSeq/highestReceivedSeq`
+  when a tab's `generation` changes (in `onList`). Config flag `restoreSessions` (default true).
+- **Mobile truncation fix**: `min-width:0` on the flex ancestors (`.app/.terminalStack/.terminalPane/.xterm`)
+  + a per-active-pane `ResizeObserver` → coalesced `scheduleFit()`; xterm soft-wraps (no h-scroll, per Sol).
+  Font zoom `adjustFont/resetFont` (persisted `cordless.fontSize`), and a `SessionDetails` sheet
+  (title/cwd/host/state/id, copyable) via the topbar ⓘ.
+- **In-app QR scanner**: `client/src/lib/scan.ts` + `@capacitor/barcode-scanner` (3.0.2, needs
+  `minSdk 26`) + `@capacitor/app`. "Scan QR" button on the pairing screen (native only) → `parsePairPayload`
+  → confirm host → pair. Camera permission + a `cordless://pair?server=…#pair=…` deep-link intent-filter
+  in the manifest; `cordless pair` also prints the deep link. (In-app scanner verified on emulator;
+  deep-link `appUrlOpen` is wired but not confirmed via `adb am start` — should work from a real camera app.)
 
 ## Known limitations (MVP)
 

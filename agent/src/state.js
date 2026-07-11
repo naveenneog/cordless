@@ -11,6 +11,7 @@ const P = {
   config: path.join(HOME, "config.json"),
   devices: path.join(HOME, "devices.json"),
   pending: path.join(HOME, "pending-pairs.json"),
+  sessions: path.join(HOME, "sessions.json"),
 };
 
 export function ensureHome() {
@@ -49,6 +50,8 @@ const DEFAULT_CONFIG = {
   maxSessions: 20,
   ringBytesPerSession: 8 * 1024 * 1024,
   scrollback: 10000,
+  // Reopen the sessions that were running when the daemon last stopped (fresh shells, same dirs).
+  restoreSessions: true,
   // WebSocket/pairing Origin allowlist (same-origin + localhost are always allowed).
   // Add your Capacitor app origin here if you package the APK, e.g. "http://localhost".
   allowedOrigins: ["capacitor://localhost", "http://localhost", "https://localhost", "ionic://localhost"],
@@ -127,6 +130,14 @@ export function revokeDevice(deviceId) {
     return true;
   }
   return false;
+}
+
+// ---- Session manifest (reopen running sessions on daemon start) ----
+export function loadSessionManifest() {
+  return readJSON(P.sessions, []);
+}
+export function saveSessionManifest(list) {
+  writeJSON(P.sessions, list);
 }
 
 // ---- Pending pairings (single-use, short-lived) ----
