@@ -17,17 +17,10 @@ jobs:
         include:
           - os: windows-latest
             build: npm run dist:win
-            glob: "desktop/release/*.exe"
           - os: macos-latest
             build: npm run dist:mac
-            glob: |
-              desktop/release/*.dmg
-              desktop/release/*.zip
           - os: ubuntu-latest
             build: npm run dist:linux
-            glob: |
-              desktop/release/*.AppImage
-              desktop/release/*.deb
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -49,20 +42,28 @@ jobs:
         run: ${{ matrix.build }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # never let electron-builder auto-publish; the release step below owns uploads
-          EP_PRE_RELEASE: "false"
 
+      # Each runner only produces its own artifact types; the non-matching globs
+      # simply match nothing (tolerated), so this same static list is correct on every OS.
       - uses: actions/upload-artifact@v4
         with:
           name: cordless-desktop-${{ matrix.os }}
           path: |
-            ${{ matrix.glob }}
-          if-no-files-found: error
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+          if-no-files-found: warn
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ matrix.glob }}
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.AppImage
+            desktop/release/*.deb
           fail_on_unmatched_files: false
