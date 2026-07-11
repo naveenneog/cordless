@@ -49,7 +49,7 @@ async function waitPortFree(ms = 8000) {
 }
 
 function startDaemon(home) {
-  const child = spawn("node", ["src/index.js", "start"], {
+  const child = spawn("node", ["src/index.js", "start", "--foreground"], {
     cwd: ROOT,
     env: { ...process.env, CORDLESS_HOME: home },
     stdio: ["ignore", "pipe", "pipe"],
@@ -86,11 +86,16 @@ const results = [];
 const record = (name, ok, note = "") => { results.push({ name, ok, note }); console.log(`\n>>> ${ok ? "PASS" : "FAIL"}  ${name}${note ? "  (" + note + ")" : ""}\n`); };
 
 async function main() {
-  // Phase 0: pty smoke (no daemon needed)
+  // Phase 0: pty smoke + pure dashboard render (no daemon needed)
   console.log("== pty_smoke ==");
   {
     const { code, out } = await runTest("pty_smoke.mjs", freshHome());
     record("pty_smoke", code === 0 && /RESULT: PASS/.test(out));
+  }
+  console.log("== dashboard_render ==");
+  {
+    const { code, out } = await runTest("dashboard_render.mjs", freshHome());
+    record("dashboard_render", code === 0 && /DASHBOARD-RENDER PASS/.test(out));
   }
 
   // Phase A: protocol + security + desktop credential (single daemon, shared home)

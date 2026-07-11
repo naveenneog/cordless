@@ -1,25 +1,65 @@
 #!/usr/bin/env node
-// cordless CLI.
-import { runPair } from "./pairing.js";
+// cordless CLI. `cordless` with no arguments opens the dashboard.
 import { loadDevices, revokeDevice } from "./state.js";
-import { installService, uninstallService, stopDaemon, status, runningPid, writePid } from "./service.js";
+import { installService, uninstallService, stopDaemon, status, runningPid, writePid, startDaemonDetached } from "./service.js";
+import { VERSION } from "./version.js";
 
 const cmd = process.argv[2];
 const args = process.argv.slice(3);
 
+const HELP = `cordless v${VERSION} — remote terminal / coding-agent session manager
+
+  cordless                       open the dashboard (status + pairing QR + sessions)
+  cordless --once                print one dashboard frame and exit (non-interactive)
+
+  cordless start [--foreground]  start the daemon (detached by default)
+  cordless stop                  stop the running daemon
+  cordless status                is the daemon running?
+  cordless doctor                diagnose daemon / Tailscale / firewall / profiles
+
+  cordless pair                  show a single-use pairing QR/code for a new device
+  cordless devices               list paired devices
+  cordless devices revoke <id>   revoke a device's token
+
+  cordless sessions              list sessions
+  cordless new [shell|claude|codex] [--cwd <dir>] [--title <t>]
+  cordless attach <id>           attach to a session (detach: Ctrl-] then d)
+  cordless kill <id>             stop a session
+
+  cordless install               start the daemon automatically at login
+  cordless uninstall [--purge]   remove the auto-start registration
+
+Config + state live in ~/.cordless (override with CORDLESS_HOME).`;
+
+function optValue(flag) {
+  const i = args.indexOf(flag);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined;
+}
+
 async function main() {
+  // `cordless` (no command) or `cordless --once` -> dashboard
+  if (!cmd || cmd === "--once" || cmd === "-1") {
+    const { runDashboard } = await import("./cli/dashboard.js");
+    await runDashboard({ once: cmd === "--once" || cmd === "-1" });
+    return;
+  }
+
   switch (cmd) {
     case "start": {
       const foreground = args.includes("--foreground") || args.includes("-f");
       const existing = runningPid();
       if (existing) {
-        console.error(`cordless is already running (pid ${existing}). Use 'cordless stop' first.`);
-        process.exit(1);
+        console.log(`cordless is already running (pid ${existing}).`);
+        return;
       }
-      writePid();
-      const { runServer } = await import("./server.js");
-      await runServer();
-      void foreground;
+      if (foreground) {
+        writePid();
+        const { runServer } = await import("./server.js");
+        await runServer();
+      } else {
+        const pid = startDaemonDetached();
+        console.log(`cordless daemon started (pid ${pid}). Run 'cordless' for the dashboard.`);
+      }
       break;
     }
     case "stop":
@@ -28,9 +68,42 @@ async function main() {
     case "status":
       status();
       break;
-    case "pair":
-      runPair();
+    case "doctor": {
+      const { runDoctor } = await import("./cli/commands.js");
+      await runDoctor();
       break;
+    }
+    case "pair": {
+      const { runPair } = await import("./cli/commands.js");
+      await runPair();
+      break;
+    }
+    case "sessions": {
+      const { runSessions } = await import("./cli/commands.js");
+      await runSessions();
+      break;
+    }
+    case "new": {
+      const { runNew } = await import("./cli/commands.js");
+      const profile = args[0] && !args[0].startsWith("-") ? args[0] : "shell";
+      const opts = {};
+      const cwd = optValue("--cwd");
+      const title = optValue("--title");
+      if (cwd) opts.cwd = cwd;
+      if (title) opts.title = title;
+      await runNew(profile, opts);
+      break;
+    }
+    case "attach": {
+      const { runAttach } = await import("./cli/commands.js");
+      await runAttach(args[0]);
+      break;
+    }
+    case "kill": {
+      const { runKill } = await import("./cli/commands.js");
+      await runKill(args[0]);
+      break;
+    }
     case "install":
       installService();
       break;
@@ -66,19 +139,18 @@ async function main() {
       }
       break;
     }
+    case "version":
+    case "--version":
+    case "-v":
+      console.log("cordless v" + VERSION);
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      console.log(HELP);
+      break;
     default:
-      console.log(`cordless — remote terminal / coding-agent session manager
-
-  cordless start [--foreground]      run the agent daemon (serves the app + websocket)
-  cordless stop                      stop the running daemon
-  cordless status                    is the daemon running?
-  cordless pair                      create a single-use pairing QR/code for a new device
-  cordless devices                   list paired devices
-  cordless devices revoke <id>       revoke a device's token
-  cordless install                   run the daemon automatically at login (auto-start)
-  cordless uninstall [--purge]       remove the auto-start registration
-
-Config + state live in ~/.cordless (override with CORDLESS_HOME).`);
+      console.log(HELP);
   }
 }
 

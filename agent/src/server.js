@@ -24,6 +24,7 @@ import { ClientMessage, out } from "./protocol.js";
 import { SessionManager } from "./sessions.js";
 import { isBlocked, recordFail, recordSuccess, authenticate, isLoopback } from "./auth.js";
 import { discoverHosts } from "./pairing.js";
+import { VERSION } from "./version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -228,7 +229,7 @@ export async function runServer() {
 
     if (req.method === "GET" && req.url?.startsWith("/v1/health")) {
       res.writeHead(200, secHeaders({ ...cors, "content-type": "application/json", "Cache-Control": "no-store" }));
-      res.end(JSON.stringify({ ok: true, daemonId: daemon.daemonId, protocol: 1 }));
+      res.end(JSON.stringify({ ok: true, daemonId: daemon.daemonId, protocol: 1, version: VERSION }));
       return;
     }
     if (req.method === "POST" && req.url?.startsWith("/v1/pair")) {
