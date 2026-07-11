@@ -116,6 +116,7 @@ class Session {
     this._alternateScreen = false; // suppress prompt heuristics while a full-screen TUI is up
     this._quietChecked = false; // has this quiet cycle already been prompt-evaluated?
     this._bellUntil = 0;
+    this._createdAtMs = Date.now(); // startup grace: ignore spawn-time bells
 
     // headless mirror for snapshots
     this.term = new Terminal({
@@ -193,8 +194,13 @@ class Session {
     this._quietChecked = false;
     this._alternateScreen = altScreenAfter(buf, this._alternateScreen);
     if (isMeaningfulOutput(buf)) this._hadMeaningfulActivity = true;
-    // BEL is an explicit attention signal — unless it is an invalid-key beep right after a keypress.
-    if (hasBell(buf) && Date.now() - this._lastInputAt > THRESHOLDS.BELL_INPUT_GUARD_MS) {
+    // BEL is an explicit attention signal — but ignore invalid-key beeps right after a keypress and
+    // shell/agent startup beeps in the session's first few seconds.
+    if (
+      hasBell(buf) &&
+      Date.now() - this._lastInputAt > THRESHOLDS.BELL_INPUT_GUARD_MS &&
+      Date.now() - this._createdAtMs > THRESHOLDS.STARTUP_GRACE_MS
+    ) {
       this._bellUntil = Date.now() + THRESHOLDS.BELL_HOLD_MS;
       this._setAttention("bell", "explicit");
     }
