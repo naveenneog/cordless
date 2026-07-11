@@ -80,6 +80,14 @@ const PairingCancel = z.object({
   pairingId: z.string().min(1).max(128),
 });
 
+// "Mark handled" — dismiss a session's attention (waiting/bell/finished) badge.
+const SessionAttentionClear = z.object({
+  type: z.literal("session.attention.clear"),
+  requestId: requestId.optional(),
+  sessionId,
+  revision: z.number().int().nonnegative().optional(),
+});
+
 export const ClientMessage = z.discriminatedUnion("type", [
   Hello,
   SessionList,
@@ -92,6 +100,7 @@ export const ClientMessage = z.discriminatedUnion("type", [
   SessionAck,
   PairingCreate,
   PairingCancel,
+  SessionAttentionClear,
 ]);
 
 // ---- Outgoing frame builders ----
@@ -132,6 +141,16 @@ export const out = {
     exitCode,
     signal: signal ?? null,
     at: new Date().toISOString(),
+  }),
+  // Attention/activity transition pushed to all clients (badges + notifications).
+  activity: ({ sessionId, activity, attention, attentionSince, attentionConfidence, attentionRevision }) => ({
+    type: "session.activity",
+    sessionId,
+    activity,
+    attention,
+    attentionSince,
+    attentionConfidence,
+    attentionRevision,
   }),
   pairingCreateResult: (requestId, { pairingId, urls, preferredUrl, code, route, expiresAt }) => ({
     type: "pairing.create.result",

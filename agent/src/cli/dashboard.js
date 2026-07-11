@@ -1,7 +1,7 @@
 // The `cordless` dashboard: a full-screen TUI that is a thin client of the persistent daemon.
 // Leaving the dashboard (q / Ctrl-C) never stops the daemon, PTYs, or phone connections.
 import { DaemonClient, ensureDaemon, daemonBaseUrl } from "./client.js";
-import { buildFrame, dim, bold, cyan, inverse, red, green, truncate } from "./render.js";
+import { buildFrame, dim, bold, cyan, inverse, red, green, truncate, attentionRank } from "./render.js";
 import { attachSession } from "./attach.js";
 import { loadDevices, revokeDevice } from "../state.js";
 import { VERSION } from "../version.js";
@@ -46,7 +46,23 @@ export async function runDashboard({ once = false } = {}) {
     selected: 0,
     message: null,
     now: Date.now(),
+    interactive: false, // true once the alternate screen is up (guards live re-renders)
   };
+
+  // Live attention/activity updates: merge into the matching session and repaint (interactive only).
+  client.on("session.activity", (m) => {
+    const s = state.sessions.find((x) => x.sessionId === m.sessionId);
+    if (!s) return;
+    s.activity = m.activity;
+    s.attention = m.attention;
+    s.attentionSince = m.attentionSince;
+    s.attentionConfidence = m.attentionConfidence;
+    s.attentionRevision = m.attentionRevision;
+    if (state.interactive) {
+      applySort();
+      render();
+    }
+  });
 
   async function refreshSessions() {
     try {
@@ -54,7 +70,19 @@ export async function runDashboard({ once = false } = {}) {
     } catch {
       state.sessions = [];
     }
+    applySort();
     if (state.selected >= state.sessions.length) state.selected = Math.max(0, state.sessions.length - 1);
+  }
+
+  // Sort attention-first (waiting > bell > finished > working > idle > exited), keeping the
+  // currently-selected session selected across the reorder.
+  function applySort() {
+    const selId = state.sessions[state.selected] && state.sessions[state.selected].sessionId;
+    state.sessions.sort((a, b) => attentionRank(a) - attentionRank(b));
+    if (selId) {
+      const i = state.sessions.findIndex((s) => s.sessionId === selId);
+      if (i >= 0) state.selected = i;
+    }
   }
   async function newPairing() {
     try {
@@ -140,9 +168,11 @@ export async function runDashboard({ once = false } = {}) {
     stdin.resume();
     stdin.on("data", onKey);
     stdout.on("resize", render);
+    state.interactive = true;
     render();
   }
   function leave() {
+    state.interactive = false;
     stdin.removeListener("data", onKey);
     stdout.removeListener("resize", render);
     try {
@@ -291,6 +321,22 @@ export async function runDashboard({ once = false } = {}) {
         await refreshSessions();
         state.message = "refreshed";
         break;
+      case "c": {
+        // Mark the selected session's attention (waiting/bell/finished) as handled.
+        const sess = state.sessions[state.selected];
+        if (sess && sess.attention) {
+          try {
+            await client._rpc("session.attention.clear", { sessionId: sess.sessionId, revision: sess.attentionRevision });
+          } catch {
+            /* ignore */
+          }
+          sess.attention = null;
+          sess.attentionConfidence = null;
+          applySort();
+          state.message = "marked handled";
+        }
+        break;
+      }
       case "n":
         pending = "new";
         state.message = "new session: s = shell \u00b7 c = Claude \u00b7 x = Codex \u00b7 (any other key cancels)";

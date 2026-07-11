@@ -17,6 +17,14 @@ import xtermHeadless from "@xterm/headless";
 import addonSerialize from "@xterm/addon-serialize";
 import { out } from "./protocol.js";
 import { loadSessionManifest, saveSessionManifest } from "./state.js";
+import {
+  THRESHOLDS,
+  hasBell,
+  isMeaningfulOutput,
+  altScreenAfter,
+  isShellPrompt,
+  looksLikePrompt,
+} from "./attention.js";
 
 const { Terminal } = xtermHeadless;
 const { SerializeAddon } = addonSerialize;
@@ -96,6 +104,19 @@ class Session {
     // terminal op queue (serializes writes + snapshots)
     this._ops = Promise.resolve();
 
+    // ---- attention state (see attention.js) ----
+    this.activity = "working"; // working | idle | exited
+    this.attention = null; // prompt | bell | finished | null
+    this.attentionSince = null; // ISO time the current attention began
+    this.attentionConfidence = null; // explicit | high | heuristic | null
+    this.attentionRevision = 0; // bumped on every state change; clients ignore stale revisions
+    this._lastOutputAt = Date.now();
+    this._lastInputAt = 0;
+    this._hadMeaningfulActivity = false; // did the session produce real output this cycle?
+    this._alternateScreen = false; // suppress prompt heuristics while a full-screen TUI is up
+    this._quietChecked = false; // has this quiet cycle already been prompt-evaluated?
+    this._bellUntil = 0;
+
     // headless mirror for snapshots
     this.term = new Terminal({
       cols,
@@ -157,10 +178,111 @@ class Session {
             const seq = this._nextSeq++;
             this._pushRing(seq, batch);
             this._broadcast(seq, batch);
+            this._noteOutput(batch); // update attention state after the term buffer reflects the batch
             resolve();
           });
         })
     );
+  }
+
+  // ---- attention detection (see attention.js) ----
+
+  // Called after each output batch is written to the headless terminal.
+  _noteOutput(buf) {
+    this._lastOutputAt = Date.now();
+    this._quietChecked = false;
+    this._alternateScreen = altScreenAfter(buf, this._alternateScreen);
+    if (isMeaningfulOutput(buf)) this._hadMeaningfulActivity = true;
+    // BEL is an explicit attention signal — unless it is an invalid-key beep right after a keypress.
+    if (hasBell(buf) && Date.now() - this._lastInputAt > THRESHOLDS.BELL_INPUT_GUARD_MS) {
+      this._bellUntil = Date.now() + THRESHOLDS.BELL_HOLD_MS;
+      this._setAttention("bell", "explicit");
+    }
+    this._setActivity("working");
+  }
+
+  // Last `n` logical lines of the live buffer (cursor line last), as trimmed plain text.
+  _tailLines(n) {
+    const lines = [];
+    try {
+      const b = this.term.buffer.active;
+      const cy = b.baseY + b.cursorY;
+      for (let y = Math.max(0, cy - (n - 1)); y <= cy; y++) {
+        const line = b.getLine(y);
+        if (line) lines.push(line.translateToString(true));
+      }
+    } catch {
+      /* headless buffer not ready */
+    }
+    return lines;
+  }
+
+  // Evaluated once per second by the manager for running sessions.
+  evaluateQuiet() {
+    if (this.state !== "running") return;
+    const quietFor = Date.now() - this._lastOutputAt;
+    if (quietFor < THRESHOLDS.PROMPT_QUIET_MS) return; // still actively producing output
+    // A quiet session that was working becomes idle (bell/prompt attention is preserved).
+    if (quietFor >= THRESHOLDS.IDLE_AFTER_MS && this.activity === "working") this._setActivity("idle");
+    if (this._quietChecked) return;
+    this._quietChecked = true;
+    this._queueOp(() => {
+      if (this.state !== "running") return;
+      if (Date.now() - this._lastOutputAt < THRESHOLDS.PROMPT_QUIET_MS) return; // new output arrived
+      if (Date.now() - this._lastInputAt < THRESHOLDS.INPUT_GRACE_MS) return; // user just typed
+      if (this._bellUntil > Date.now()) return; // hold the bell badge
+      const tail = this._tailLines(6);
+      const res = looksLikePrompt(tail, { alternateScreen: this._alternateScreen });
+      if (res.match) {
+        this._setAttention("prompt", res.confidence);
+        return;
+      }
+      // Heuristic "finished" for coding agents: back at a shell prompt after real activity.
+      const finishedEnabled = this.mgr.cfg.attentionFinished !== false;
+      if (
+        finishedEnabled &&
+        (this.profile === "claude" || this.profile === "codex") &&
+        this._hadMeaningfulActivity &&
+        !this._alternateScreen &&
+        Date.now() - this._lastOutputAt >= THRESHOLDS.FINISHED_QUIET_MS
+      ) {
+        const last = tail.map((s) => s.replace(/\s+$/, "")).filter(Boolean).pop() || "";
+        if (isShellPrompt(last)) {
+          this._hadMeaningfulActivity = false; // at most one "finished" per activity cycle
+          this._setAttention("finished", "heuristic");
+        }
+      }
+    });
+  }
+
+  _setActivity(a) {
+    if (this.activity === a) return;
+    this.activity = a;
+    this._emit(false);
+  }
+
+  _setAttention(reason, confidence) {
+    if (this.attention === reason) return;
+    this.attention = reason;
+    this.attentionConfidence = reason ? confidence : null;
+    this.attentionSince = reason ? new Date().toISOString() : null;
+    // A transition INTO waiting/bell/finished is notification-worthy.
+    this._emit(reason === "prompt" || reason === "bell" || reason === "finished");
+  }
+
+  _clearAttention() {
+    this._setAttention(null, null);
+  }
+
+  // "Mark handled" — dismiss the current attention badge from a client.
+  markHandled() {
+    this._bellUntil = 0;
+    this._clearAttention();
+  }
+
+  _emit(notify) {
+    this.attentionRevision++;
+    this.mgr._emitAttention(this, notify);
   }
 
   _pushRing(seq, buf) {
@@ -223,6 +345,10 @@ class Session {
 
   input(data) {
     if (this.state !== "running") return;
+    this._lastInputAt = Date.now();
+    // Sending input answers a prompt / dismisses a bell / acknowledges "finished".
+    if (this.attention) this.markHandled();
+    this._setActivity("working");
     // data is base64 of utf8 keystrokes
     this.pty.write(Buffer.from(data, "base64").toString("utf8"));
   }
@@ -281,6 +407,15 @@ class Session {
     this.state = "exited";
     this.exitCode = exitCode ?? null;
     this.signal = signal ?? null;
+    this.activity = "exited";
+    // An agent session that did real work and then exited is "finished"; a bare shell exit is not.
+    if ((this.profile === "claude" || this.profile === "codex") && this._hadMeaningfulActivity) {
+      this.attention = "finished";
+      this.attentionConfidence = "high";
+      this.attentionSince = new Date().toISOString();
+    }
+    this.attentionRevision++;
+    this.mgr._emitAttention(this, true);
     const frame = out.exit(this.id, this.exitCode, this.signal);
     for (const sub of this.subscribers) sub.deliver(frame, 0);
     this.mgr._persistManifest();
@@ -301,7 +436,22 @@ class Session {
       latestSeq: this._nextSeq - 1,
       attachedDevices: this.subscribers.size,
       exitCode: this.exitCode,
+      activity: this.activity,
+      attention: this.attention,
+      attentionSince: this.attentionSince,
+      attentionConfidence: this.attentionConfidence,
+      attentionRevision: this.attentionRevision,
+      lastLine: this._lastLinePreview(),
     };
+  }
+
+  // A sanitized preview of the last non-empty terminal line (for list/detail previews).
+  _lastLinePreview() {
+    const last = this._tailLines(3)
+      .map((s) => s.replace(/\s+$/, ""))
+      .filter(Boolean)
+      .pop() || "";
+    return last.length > 120 ? last.slice(0, 119) + "\u2026" : last;
   }
 }
 
@@ -309,6 +459,47 @@ export class SessionManager {
   constructor(cfg) {
     this.cfg = cfg;
     this.sessions = new Map();
+    this._onEvent = null; // (frame, { notify, session }) => void  — set by the server
+    this._attTimer = null;
+  }
+
+  // Start the single manager-level attention loop. `onEvent` receives a session.activity frame plus
+  // metadata (notify=true on transitions into waiting/bell/finished/exited) so the server can
+  // broadcast it and (optionally) fire notifications. One timer for all sessions — never one per PTY.
+  startEventLoop(onEvent) {
+    this._onEvent = onEvent;
+    if (this._attTimer) clearInterval(this._attTimer);
+    this._attTimer = setInterval(() => {
+      for (const s of this.sessions.values()) {
+        if (s.state === "running") s.evaluateQuiet();
+      }
+    }, 1000);
+    this._attTimer.unref?.();
+  }
+
+  stopEventLoop() {
+    if (this._attTimer) clearInterval(this._attTimer);
+    this._attTimer = null;
+    this._onEvent = null;
+  }
+
+  _emitAttention(session, notify) {
+    if (!this._onEvent) return;
+    try {
+      this._onEvent(
+        out.activity({
+          sessionId: session.id,
+          activity: session.activity,
+          attention: session.attention,
+          attentionSince: session.attentionSince,
+          attentionConfidence: session.attentionConfidence,
+          attentionRevision: session.attentionRevision,
+        }),
+        { notify, session }
+      );
+    } catch {
+      /* never let a listener break the session */
+    }
   }
 
   list() {
@@ -393,6 +584,7 @@ export class SessionManager {
   }
 
   shutdown() {
+    this.stopEventLoop();
     for (const s of this.sessions.values()) {
       try {
         if (s.state === "running") s.pty.kill();

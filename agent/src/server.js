@@ -220,6 +220,13 @@ export async function runServer() {
   ensureDesktopCredential(cfg.port); // local credential for the desktop app (auto-pair on loopback)
   const connections = new Set();
 
+  // Relay session attention/activity transitions to every authenticated client (live badges + UI).
+  mgr.startEventLoop((frame) => {
+    for (const conn of connections) {
+      if (conn.authed) safeSend(conn.ws, frame);
+    }
+  });
+
   const server = http.createServer(async (req, res) => {
     const ip = req.socket.remoteAddress || "?";
     const cors = corsHeaders(req, cfg);
@@ -443,6 +450,13 @@ export async function runServer() {
       case "session.ack": {
         const sub = conn.subscribers.get(m.sessionId);
         if (sub) sub.onAck(m.seq);
+        break;
+      }
+
+      case "session.attention.clear": {
+        const sess = mgr.get(m.sessionId);
+        if (sess) sess.markHandled(m.revision);
+        if (m.requestId) safeSend(ws, out.result("session.attention.clear.result", m.requestId, {}));
         break;
       }
 
