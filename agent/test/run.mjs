@@ -102,6 +102,11 @@ async function main() {
     const { code, out } = await runTest("attention.mjs", freshHome());
     record("attention", code === 0 && /ATTENTION PASS/.test(out));
   }
+  console.log("== notifier ==");
+  {
+    const { code, out } = await runTest("notifier.mjs", freshHome());
+    record("notifier", code === 0 && /NOTIFIER PASS/.test(out));
+  }
 
   // Phase A: protocol + security + desktop credential (single daemon, shared home)
   console.log("== phase A: e2e / security / desktop ==");
