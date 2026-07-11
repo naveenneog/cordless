@@ -35,7 +35,7 @@
     "artifactName": "cordless-desktop-${version}-${os}-${arch}.${ext}",
     "files": ["main.js", "preload.js", "fallback.html", "lib/**", "build/icon.png"],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": ["nsis"],
       "icon": "build/icon.png"
     },
     "nsis": {
