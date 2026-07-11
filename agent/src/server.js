@@ -16,10 +16,14 @@ import {
   consumePendingPair,
   randomToken,
   ensureDesktopCredential,
+  addPendingPair,
+  cancelPendingPairById,
+  countActivePendingPairs,
 } from "./state.js";
 import { ClientMessage, out } from "./protocol.js";
 import { SessionManager } from "./sessions.js";
-import { isBlocked, recordFail, recordSuccess, authenticate } from "./auth.js";
+import { isBlocked, recordFail, recordSuccess, authenticate, isLoopback } from "./auth.js";
+import { discoverHosts } from "./pairing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -27,6 +31,21 @@ const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const MAX_WS_BUFFER = 4 * 1024 * 1024;
 const NO_ACK_MS = 30_000;
 const HELLO_TIMEOUT_MS = 10_000;
+
+// Pairing-code minting is loopback-only, but still rate-limited per socket peer: 5/min, 20/hour.
+const pairingHits = new Map(); // ip -> number[] (ms timestamps)
+function pairingRateOk(ip) {
+  const now = Date.now();
+  const arr = (pairingHits.get(ip) || []).filter((t) => now - t < 3_600_000);
+  const lastMin = arr.filter((t) => now - t < 60_000).length;
+  if (lastMin >= 5 || arr.length >= 20) {
+    pairingHits.set(ip, arr);
+    return false;
+  }
+  arr.push(now);
+  pairingHits.set(ip, arr);
+  return true;
+}
 
 const CONTENT_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -419,6 +438,50 @@ export async function runServer() {
       case "session.ack": {
         const sub = conn.subscribers.get(m.sessionId);
         if (sub) sub.onAck(m.seq);
+        break;
+      }
+
+      case "pairing.create": {
+        // Only the loopback desktop/CLI credential may mint pairing codes, and only from a real
+        // loopback socket peer (never trusted from headers). This is the daemon-owned mint that
+        // both the dashboard and `cordless pair` call.
+        if (!(conn.device?.scope === "loopback" && isLoopback(conn.ip))) {
+          safeSend(ws, out.error("pairing.create.result", m.requestId, "forbidden", "pairing can only be started from this computer"));
+          break;
+        }
+        if (!pairingRateOk(conn.ip)) {
+          safeSend(ws, out.error("pairing.create.result", m.requestId, "rate_limited", "too many pairing requests; wait a moment"));
+          break;
+        }
+        if (countActivePendingPairs("app") >= 3) {
+          safeSend(ws, out.error("pairing.create.result", m.requestId, "too_many_pending", "too many active pairing codes; cancel one or let it expire"));
+          break;
+        }
+        const secret = randomToken();
+        const { id: pairingId, expiresAt } = addPendingPair(secret, 5, "app");
+        const { tailscale, lan } = discoverHosts();
+        const port = cfg.port;
+        const mkUrl = (h) => `http://${h}:${port}/#pair=${secret}`;
+        const tsUrls = tailscale.map(mkUrl);
+        const lanUrls = (m.allowLan ? lan : []).map(mkUrl);
+        const urls = [...tsUrls, ...lanUrls];
+        const route = tailscale.length
+          ? { kind: "tailscale", host: tailscale[0] }
+          : m.allowLan && lan.length
+            ? { kind: "lan", host: lan[0] }
+            : { kind: "none" };
+        // The secret rides in the URL fragment (never logged); `code` is for manual entry.
+        safeSend(ws, out.pairingCreateResult(m.requestId, { pairingId, urls, preferredUrl: urls[0] || null, code: secret, route, expiresAt }));
+        break;
+      }
+
+      case "pairing.cancel": {
+        if (!(conn.device?.scope === "loopback" && isLoopback(conn.ip))) {
+          safeSend(ws, out.error("pairing.cancel.result", m.requestId, "forbidden", "not allowed"));
+          break;
+        }
+        cancelPendingPairById(m.pairingId);
+        safeSend(ws, out.result("pairing.cancel.result", m.requestId, {}));
         break;
       }
     }

@@ -4,7 +4,7 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { HOME, ensureHome } from "./state.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +47,21 @@ export function writePid() {
   process.on("exit", cleanup);
 }
 
+// Start the daemon as a detached background process (survives this CLI exiting). Returns its pid,
+// or the pid of the already-running daemon. In a SEA build the entry is the exe itself
+// (`cordless start --foreground`); in dev it is `node index.js start --foreground`.
+export function startDaemonDetached() {
+  const existing = runningPid();
+  if (existing) return existing;
+  ensureHome();
+  const isSea = !fs.existsSync(ENTRY);
+  const argv = isSea ? ["start", "--foreground"] : [ENTRY, "start", "--foreground"];
+  const outFd = fs.openSync(LOG, "a");
+  const child = spawn(NODE, argv, { detached: true, stdio: ["ignore", outFd, outFd], windowsHide: true });
+  child.unref();
+  return child.pid;
+}
+
 // ---- commands ----
 export function status() {
   const pid = runningPid();
@@ -86,7 +101,7 @@ export function uninstallService() {
 function installWindows() {
   const cmdFile = path.join(HOME, "cordless-run.cmd");
   const vbsFile = path.join(HOME, "cordless-launch.vbs");
-  fs.writeFileSync(cmdFile, `@echo off\r\n"${NODE}" "${ENTRY}" start >> "${LOG}" 2>&1\r\n`);
+  fs.writeFileSync(cmdFile, `@echo off\r\n"${NODE}" "${ENTRY}" start --foreground >> "${LOG}" 2>&1\r\n`);
   // Run the .cmd fully hidden (window style 0) so nothing flashes at logon.
   fs.writeFileSync(vbsFile, `CreateObject("Wscript.Shell").Run """${cmdFile}""", 0, False\r\n`);
   execFileSync(
@@ -133,7 +148,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${NODE} ${ENTRY} start
+ExecStart=${NODE} ${ENTRY} start --foreground
 Restart=on-failure
 RestartSec=5
 
@@ -181,7 +196,7 @@ function installMac() {
 <dict>
   <key>Label</key><string>com.naveenneog.cordless</string>
   <key>ProgramArguments</key>
-  <array><string>${NODE}</string><string>${ENTRY}</string><string>start</string></array>
+  <array><string>${NODE}</string><string>${ENTRY}</string><string>start</string><string>--foreground</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${LOG}</string>

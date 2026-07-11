@@ -40,6 +40,12 @@ function lanHosts() {
   return out;
 }
 
+// Reachable hosts for phone pairing, Tailscale first. Shared by `cordless pair` and the daemon's
+// authenticated pairing.create (so the dashboard and CLI show consistent URLs).
+export function discoverHosts() {
+  return { tailscale: tailscaleHosts(), lan: lanHosts() };
+}
+
 export function runPair() {
   const cfg = loadConfig();
   const secret = randomToken();

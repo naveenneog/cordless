@@ -29,6 +29,7 @@ function isLoopback(ip) {
   const a = String(ip).replace(/^::ffff:/, "");
   return a === "::1" || a === "127.0.0.1" || a.startsWith("127.");
 }
+export { isLoopback };
 
 // Verify a hello frame. Returns the device record or null. Loopback-scoped tokens (the desktop
 // app's local credential) are only accepted from 127.0.0.1 / ::1.

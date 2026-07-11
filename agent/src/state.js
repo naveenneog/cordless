@@ -173,14 +173,26 @@ export function saveSessionManifest(list) {
 }
 
 // ---- Pending pairings (single-use, short-lived) ----
-export function addPendingPair(secret, ttlMinutes = 15) {
-  const list = readJSON(P.pending, []).filter((p) => new Date(p.expiresAt).getTime() > Date.now());
-  list.push({
+const MAX_PENDING = 5;
+
+// Mint a pending pairing. `source` is "cli" or "app" (for per-source caps). Returns { id, expiresAt }.
+export function addPendingPair(secret, ttlMinutes = 15, source = "cli") {
+  const now = Date.now();
+  const list = readJSON(P.pending, [])
+    .filter((p) => new Date(p.expiresAt).getTime() > now)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  // Bound outstanding secrets; drop the oldest when at capacity.
+  while (list.length >= MAX_PENDING) list.shift();
+  const rec = {
+    id: crypto.randomUUID(),
     secretHash: sha256(secret),
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + ttlMinutes * 60_000).toISOString(),
-  });
+    source,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + ttlMinutes * 60_000).toISOString(),
+  };
+  list.push(rec);
   writeJSON(P.pending, list);
+  return { id: rec.id, expiresAt: rec.expiresAt };
 }
 // Consume a pending pairing if the secret matches and is unexpired. Returns true on success.
 export function consumePendingPair(secret) {
@@ -194,4 +206,22 @@ export function consumePendingPair(secret) {
   list.splice(idx, 1);
   writeJSON(P.pending, list.filter((p) => new Date(p.expiresAt).getTime() > now));
   return true;
+}
+// Non-secret metadata for active pending pairings (never exposes the hash/secret).
+export function listPendingPairs() {
+  const now = Date.now();
+  return readJSON(P.pending, [])
+    .filter((p) => new Date(p.expiresAt).getTime() > now)
+    .map((p) => ({ id: p.id, source: p.source || "cli", createdAt: p.createdAt, expiresAt: p.expiresAt }));
+}
+export function countActivePendingPairs(source) {
+  const now = Date.now();
+  return readJSON(P.pending, []).filter(
+    (p) => new Date(p.expiresAt).getTime() > now && (!source || (p.source || "cli") === source)
+  ).length;
+}
+export function cancelPendingPairById(id) {
+  const now = Date.now();
+  const list = readJSON(P.pending, []);
+  writeJSON(P.pending, list.filter((p) => p.id !== id && new Date(p.expiresAt).getTime() > now));
 }

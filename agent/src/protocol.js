@@ -68,6 +68,18 @@ const SessionAck = z.object({
   seq: z.number().int().nonnegative(),
 });
 
+// Mint a single-use pairing secret + return reachable phone URLs. Loopback-scoped only (server-enforced).
+const PairingCreate = z.object({
+  type: z.literal("pairing.create"),
+  requestId,
+  allowLan: z.boolean().optional(),
+});
+const PairingCancel = z.object({
+  type: z.literal("pairing.cancel"),
+  requestId,
+  pairingId: z.string().min(1).max(128),
+});
+
 export const ClientMessage = z.discriminatedUnion("type", [
   Hello,
   SessionList,
@@ -78,6 +90,8 @@ export const ClientMessage = z.discriminatedUnion("type", [
   SessionDetach,
   SessionKill,
   SessionAck,
+  PairingCreate,
+  PairingCancel,
 ]);
 
 // ---- Outgoing frame builders ----
@@ -118,5 +132,16 @@ export const out = {
     exitCode,
     signal: signal ?? null,
     at: new Date().toISOString(),
+  }),
+  pairingCreateResult: (requestId, { pairingId, urls, preferredUrl, code, route, expiresAt }) => ({
+    type: "pairing.create.result",
+    requestId,
+    ok: true,
+    pairingId,
+    urls,
+    preferredUrl,
+    code,
+    route,
+    expiresAt,
   }),
 };
