@@ -28,6 +28,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless output <id> [--lines N] [--copy]   print/copy a session's last output
   cordless search <id> <query>   search a session's retained scrollback
   cordless kill <id>             stop a session
+  cordless workspace <save|open|list|delete> [name]   named session templates
 
   cordless install               start the daemon automatically at login
   cordless uninstall [--purge]   remove the auto-start registration
@@ -126,6 +127,12 @@ async function main() {
     case "kill": {
       const { runKill } = await import("./cli/commands.js");
       await runKill(args[0]);
+      break;
+    }
+    case "workspace":
+    case "ws": {
+      const { runWorkspace } = await import("./cli/commands.js");
+      await runWorkspace(args[0], args[1]);
       break;
     }
     case "install":

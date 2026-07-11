@@ -107,6 +107,11 @@ async function main() {
     const { code, out } = await runTest("notifier.mjs", freshHome());
     record("notifier", code === 0 && /NOTIFIER PASS/.test(out));
   }
+  console.log("== workspace ==");
+  {
+    const { code, out } = await runTest("workspace.mjs", freshHome());
+    record("workspace", code === 0 && /WORKSPACE PASS/.test(out));
+  }
 
   // Phase A: protocol + security + desktop credential (single daemon, shared home)
   console.log("== phase A: e2e / security / desktop ==");
