@@ -7,6 +7,7 @@ import { loadConfig, loadDevices } from "../state.js";
 import { discoverHosts } from "../pairing.js";
 import { runningPid } from "../service.js";
 import { VERSION } from "../version.js";
+import { attentionRank, needsAttention } from "./render.js";
 
 async function withClient(fn) {
   const { health: h } = await ensureDaemon();
@@ -52,15 +53,18 @@ export async function runPair() {
   });
 }
 
-export async function runSessions() {
+export async function runSessions(opts = {}) {
   await withClient(async (c) => {
-    const list = await c.listSessions();
+    let list = await c.listSessions();
+    if (opts.attention) list = list.filter(needsAttention);
+    list.sort((a, b) => attentionRank(a) - attentionRank(b));
     if (!list.length) {
-      console.log("no sessions \u2014 run `cordless new` or open the dashboard with `cordless`.");
+      console.log(opts.attention ? "no sessions need attention." : "no sessions \u2014 run `cordless new` or open the dashboard with `cordless`.");
       return;
     }
     for (const s of list) {
-      console.log(`${s.sessionId.slice(0, 8)}  ${(s.profile || "shell").padEnd(7)} ${(s.state || "").padEnd(8)} ${s.title || s.cwd || ""}`);
+      const status = s.attention ? s.attention.toUpperCase() : s.activity || s.state || "";
+      console.log(`${s.sessionId.slice(0, 8)}  ${(s.profile || "shell").padEnd(7)} ${String(status).padEnd(9)} ${s.title || s.cwd || ""}`);
     }
   });
 }

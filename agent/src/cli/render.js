@@ -38,6 +38,40 @@ export function truncate(s, w) {
 
 const profileIcon = (p) => (p === "claude" ? "\u25c6" : p === "codex" ? "\u25c7" : "\u25cf");
 
+// A one-glyph status badge: attention (waiting/bell/finished) takes precedence over activity.
+export function attentionGlyph(s) {
+  if (s.attention === "prompt") return yellow("!");
+  if (s.attention === "bell") return yellow("\u203c"); // ‼
+  if (s.attention === "finished") return green("\u2713"); // ✓
+  if (s.state === "exited" || s.activity === "exited") return dim("\u00d7"); // ×
+  if (s.activity === "idle") return dim("\u25cb"); // ○
+  return green("\u25cf"); // ● working
+}
+
+// Short status word shown after the title.
+export function attentionWord(s) {
+  if (s.attention === "prompt") return yellow("waiting");
+  if (s.attention === "bell") return yellow("bell");
+  if (s.attention === "finished") return green("finished");
+  if (s.state === "exited" || s.activity === "exited") return dim("exited" + (s.exitCode != null ? ` (${s.exitCode})` : ""));
+  if (s.activity === "idle") return dim("idle");
+  return green("working");
+}
+
+// Sort key — attention first, then working, idle, exited. Lower sorts earlier.
+export function attentionRank(s) {
+  if (s.attention === "prompt") return 0;
+  if (s.attention === "bell") return 1;
+  if (s.attention === "finished") return 2;
+  if (s.state === "exited" || s.activity === "exited") return 5;
+  if (s.activity === "idle") return 4;
+  return 3; // working
+}
+
+export function needsAttention(s) {
+  return s.attention === "prompt" || s.attention === "bell" || s.attention === "finished";
+}
+
 // Build the visible dashboard as an array of plain-width lines (color codes added but not counted
 // toward width). The caller clears the screen and prints these.
 export function buildFrame(state, cols = 80, rows = 24) {
@@ -82,24 +116,25 @@ export function buildFrame(state, cols = 80, rows = 24) {
   }
   push();
 
-  // Sessions
+  // Sessions (attention-first)
   const sessions = state.sessions || [];
-  push(dim("\u2500\u2500 ") + bold(`Sessions (${sessions.length})`) + dim(" \u2500\u2500"));
+  const attnCount = sessions.filter(needsAttention).length;
+  push(dim("\u2500\u2500 ") + bold(`Sessions (${sessions.length})`) + dim(" \u2500\u2500") + (attnCount ? "  " + yellow(`${attnCount} need attention`) : ""));
   if (!sessions.length) {
     push("  " + dim("no sessions yet \u2014 press n to start a shell, Claude, or Codex"));
   } else {
     sessions.forEach((s, i) => {
       const sel = i === state.selected;
-      const icon = profileIcon(s.profile);
-      const st = s.state === "running" ? green(s.state || "running") : dim(s.state || "exited");
-      const label = `${icon} ${(s.profile || "shell").padEnd(7)} ${truncate(s.title || s.cwd || "", 28).padEnd(28)} ${st}`;
-      push((sel ? cyan("\u25b8 ") : "  ") + (sel ? inverse(truncate(label, inner - 2)) : truncate(label, inner - 2)));
+      const glyph = attentionGlyph(s);
+      const label = `${(s.profile || "shell").padEnd(7)} ${truncate(s.title || s.cwd || "", 26).padEnd(26)} ${attentionWord(s)}`;
+      push((sel ? cyan("\u25b8 ") : "  ") + glyph + " " + (sel ? inverse(truncate(label, inner - 4)) : truncate(label, inner - 4)));
+      if (sel && s.lastLine) push("      " + dim(truncate(s.lastLine, inner - 6)));
     });
   }
   push();
 
   // Footer
-  push(dim("\u2191/\u2193 select \u00b7 enter attach \u00b7 n new \u00b7 p new QR \u00b7 d devices \u00b7 x kill \u00b7 r refresh \u00b7 q quit"));
+  push(dim("\u2191/\u2193 select \u00b7 enter attach \u00b7 n new \u00b7 c clear \u00b7 p new QR \u00b7 d devices \u00b7 x kill \u00b7 r refresh \u00b7 q quit"));
   if (state.message) push(yellow(truncate(state.message, inner)));
 
   return lines;

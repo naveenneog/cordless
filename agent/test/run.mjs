@@ -97,6 +97,11 @@ async function main() {
     const { code, out } = await runTest("dashboard_render.mjs", freshHome());
     record("dashboard_render", code === 0 && /DASHBOARD-RENDER PASS/.test(out));
   }
+  console.log("== attention (pure) ==");
+  {
+    const { code, out } = await runTest("attention.mjs", freshHome());
+    record("attention", code === 0 && /ATTENTION PASS/.test(out));
+  }
 
   // Phase A: protocol + security + desktop credential (single daemon, shared home)
   console.log("== phase A: e2e / security / desktop ==");
@@ -105,7 +110,7 @@ async function main() {
     const d = startDaemon(home);
     if (!(await waitHealthy())) { record("phaseA:daemon-start", false, "health never came up"); await stopDaemon(d); }
     else {
-      for (const f of ["e2e.mjs", "security.mjs", "desktop.mjs", "desktop_scope.mjs", "pairing.mjs", "cli_client.mjs"]) {
+      for (const f of ["e2e.mjs", "security.mjs", "desktop.mjs", "desktop_scope.mjs", "pairing.mjs", "cli_client.mjs", "attention_live.mjs"]) {
         const { code } = await runTest(f, home);
         record(f, code === 0);
       }

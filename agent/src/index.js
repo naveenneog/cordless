@@ -80,7 +80,7 @@ async function main() {
     }
     case "sessions": {
       const { runSessions } = await import("./cli/commands.js");
-      await runSessions();
+      await runSessions({ attention: args.includes("--attention") || args.includes("-a") });
       break;
     }
     case "new": {
