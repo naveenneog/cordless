@@ -3,6 +3,28 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
+## v0.6 — CLI-first (current shape)
+
+cordless is now **CLI-first**: `cordless` (no args) opens a full-screen terminal **dashboard** (a thin
+client of the persistent daemon) showing daemon/Tailscale status, a **live single-use pairing QR** (with
+countdown; `p` regenerates), and the session list. `Enter` attaches a session straight into the host
+terminal (no xterm.js; detach `Ctrl-] d`), `n` starts one, `x` kills, `d` manages devices; `q`/`Ctrl-C`
+leaves the dashboard but the daemon keeps running. The phone app scans the dashboard's QR.
+
+- Pairing is **daemon-owned**: `pairing.create` / `pairing.cancel` over the authenticated WS, mintable
+  ONLY by a `scope:"loopback"` credential from a loopback socket peer (rate-limited, 256-bit, single-use,
+  5-min TTL, max 3 active). Both the dashboard and `cordless pair` call it. `agent/src/cli/` holds
+  `client.js` (loopback WS client), `dashboard.js` (TUI), `attach.js`, `commands.js`, `render.js`.
+- Packaged as a **self-contained `cordless.exe`** via **Node SEA** (`agent/build/sea.mjs`,
+  `npm --prefix agent run sea`): esbuild bundles the CLI (node-pty external) → SEA blob → injected into a
+  copy of the Node runtime; `node-pty` (ABI-stable node-api prebuilds) + the built web client ship beside
+  it under `resources/`. `src/runtime.js` `IS_SEA` switches paths; `src/pty-loader.js` loads node-pty from
+  `resources/`. No Node prerequisite. CI: `.github/workflows/cli.yml` builds + smoke-tests (PTY spawn) +
+  zips per-OS on tag. The **Electron desktop app is now optional** (no v0.6 investment).
+- Commands: `cordless` (dashboard), `--once`, `start [--foreground]` (detached by default), `stop`,
+  `status`, `doctor`, `pair`, `devices [revoke]`, `sessions`, `new`, `attach <id>`, `kill <id>`,
+  `install`, `uninstall`. `npm --prefix agent test` harness is 10/10.
+
 ## What it is
 
 A mobile app + Node daemon to manage many **remote PTY / coding-agent sessions** (shell, `claude`,

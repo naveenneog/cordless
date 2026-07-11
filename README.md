@@ -1,51 +1,45 @@
 # cordless
 
-**Manage many remote terminal / coding-agent sessions from your phone — like browser tabs.**
+**A CLI-first remote terminal. Run `cordless`, scan the QR on its starting screen, and drive your dev‑box coding sessions from your phone.**
 
-cordless runs a small daemon on your dev box or laptop that owns real PTY sessions (a shell, or
-`claude` / `codex`), and a mobile web app that attaches to them like browser tabs. Sessions keep
-running when you disconnect; reconnecting replays exactly where you left off.
+cordless is a single self‑contained command you install on your dev box or laptop. Run it and it opens a
+proper terminal **dashboard** whose starting screen shows a **pairing QR** — scan it with the cordless phone
+app and your sessions (a shell, `claude`, or `codex`) are in your pocket. Sessions keep running when you
+disconnect; the daemon stays up after you close the dashboard, and reconnecting replays where you left off.
 
-**Site:** [naveenneog.github.io/cordless](https://naveenneog.github.io/cordless/) · **Download:** [Android APK](https://github.com/naveenneog/cordless/releases/latest) · [Desktop app](https://github.com/naveenneog/cordless/releases/latest) (Windows / macOS / Linux)
+**Site:** [naveenneog.github.io/cordless](https://naveenneog.github.io/cordless/) · **Download:** [cordless CLI](https://github.com/naveenneog/cordless/releases/latest) (Windows / macOS / Linux — no Node needed) · [Android APK](https://github.com/naveenneog/cordless/releases/latest)
 
 <p align="center"><img src="docs/screenshot.png" alt="cordless" width="820"></p>
 
+- **CLI‑first** — `cordless` is a full‑screen terminal dashboard: daemon status, a live single‑use pairing
+  QR with countdown, and your session list — all in the terminal. No GUI required on the dev box.
+- **One self‑contained binary** — ships with its own Node runtime **and** `node-pty`; nothing to install first.
 - **Persistent sessions** — PTYs survive phone disconnects, network switches, and app backgrounding.
-  Reconnect replays from your last-seen byte (or a full-screen snapshot if you were away too long).
-- **Tabs for terminals** — run several Claude Code / Codex / shell sessions at once, switch instantly.
-- **Touch-first** — an on-screen key bar (Esc, Tab, Ctrl/Alt, arrows, Ctrl-C/D, pipes, paste), pinch-free
-  font zoom (A−/A+), soft-wrapping so long lines never truncate, and a details sheet for the full cwd /
-  session id. The Android app has a built-in **QR scanner** for pairing.
-- **Reach it from anywhere** — Tailscale is the recommended path; same-Wi-Fi LAN also works.
-- **Secure by default** — per-device tokens, single-use QR pairing, Origin allowlist, CSP, and a
-  daemon that only ever runs as *you*.
+  Reconnect replays from your last‑seen byte (or a full‑screen snapshot if you were away too long).
+- **Attach from anywhere** — `cordless attach <id>` streams a session straight into your terminal (detach
+  with `Ctrl‑] d`); the phone app gives you the same sessions with a touch key bar and QR scanner.
+- **Reach it from anywhere** — Tailscale is the recommended path; same‑Wi‑Fi LAN also works.
+- **Secure by default** — per‑device tokens, single‑use pairing codes that only the **local** daemon can
+  mint (loopback‑only), Origin allowlist, CSP, and a daemon that only ever runs as *you*.
 
-> Designed and code-reviewed in tandem with GPT-5.6 Sol. See `CONTEXT.md` for the architecture and the
+> Designed and code‑reviewed in tandem with GPT‑5.6 Sol. See `CONTEXT.md` for the architecture and the
 > full design rationale.
 
 ---
 
 ## Prerequisites
 
-**On your dev box / laptop (the machine your agents run on):**
+**On your dev box / laptop:** nothing — the cordless CLI is a self‑contained binary (its own Node runtime +
+`node-pty`). Optionally:
 
-- Windows 11, current macOS, or a modern Linux distro.
-- **Node.js 22 LTS or newer** — <https://nodejs.org/en/download> (the daemon builds `node-pty`, so a
-  C/C++ toolchain is needed: Visual Studio Build Tools on Windows, Xcode CLT on macOS, `build-essential` + `python3` on Linux).
-- **Tailscale** (recommended, to reach your box from anywhere) — <https://tailscale.com/download>
-- PowerShell 7 is recommended on Windows — <https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows>
-
-Optional coding agents must already be installed and on the daemon's `PATH`:
-
-```bash
-claude --version
-codex --version
-```
+- **Tailscale** to reach your box from anywhere — <https://tailscale.com/download>
+- Coding agents on `PATH` if you want those profiles: `claude --version`, `codex --version`
+- (Only to **build from source**: Node.js 22+ and a C/C++ toolchain for `node-pty`.)
 
 **On your phone:**
 
 - The cordless **Android APK** — [latest release](https://github.com/naveenneog/cordless/releases/latest).
-- The **Tailscale Android app** — <https://tailscale.com/download/android>
+- The **Tailscale Android app** (for access from anywhere) — <https://tailscale.com/download/android>
 
 Sign the phone and the dev box into the **same tailnet**.
 
@@ -53,65 +47,57 @@ Sign the phone and the dev box into the **same tailnet**.
 
 ## Quick start
 
-### 1. On your dev box / laptop (the machine your agents run on)
+### 1. Install cordless on your dev box / laptop
+
+Download the **cordless CLI** for your OS from the [latest release](https://github.com/naveenneog/cordless/releases/latest) and unpack it:
+
+| OS | Asset | Run |
+| --- | --- | --- |
+| Windows | `cordless-cli-windows-x64.zip` | `cordless.exe` |
+| macOS | `cordless-cli-macos-arm64.tar.gz` | `./cordless` |
+| Linux | `cordless-cli-linux-x64.tar.gz` | `./cordless` |
+
+It's a **single self‑contained executable** — no Node install required. Put it on your `PATH`, then:
+
+```bash
+cordless            # opens the dashboard: status + a pairing QR + your sessions
+cordless install    # keep the daemon running at login, so your sessions are always there
+```
+
+### 2. Pair your phone
+
+The dashboard's starting screen shows a **QR**. Install the cordless Android app, tap **Scan QR**, and scan
+it. (Or press `p` for a fresh code, run `cordless pair` for a one‑shot QR, or open the printed URL in your
+phone browser as a PWA.)
+
+### 3. Use it
+
+In the dashboard: `↑/↓` select a session, `Enter` to attach, `n` to start a shell / Claude / Codex, `x` to
+kill, `q` to leave (the daemon keeps running). From the phone, tap **＋** for a new session and switch tabs.
+Close everything, come back later — your sessions are still there.
+
+<details><summary>Prefer to run from source (Node 22+)?</summary>
 
 ```bash
 git clone https://github.com/naveenneog/cordless
 cd cordless
 npm run setup      # installs agent + client deps (builds node-pty)
 npm run build      # builds the web client into agent/public
-npm start          # starts the daemon on :7443
+npm start          # starts the daemon on :7443 — then run `node agent/src/index.js` for the dashboard
 ```
 
-### 2. Pair your phone
+Build a self‑contained binary from source with `npm --prefix agent run sea` (output in `agent/dist-sea/`).
 
-In another terminal:
-
-```bash
-npm run pair
-```
-
-This prints a QR code (valid 15 min, single use). **Scan it with your phone's camera** — it opens the
-cordless app in your browser and pairs automatically. Or open the printed URL and paste the code.
-
-- On the same Wi-Fi, the LAN URL just works.
-- To reach your box from anywhere, put the dev box **and** your phone on the same Tailscale tailnet;
-  `cordless pair` will then print a stable `100.x` / `*.ts.net` URL. See **[Tailscale setup](#tailscale-setup)**
-  below for the `tailscale up`, ACL, and Windows-firewall steps.
-
-### 3. Use it
-
-Tap **＋** to start a `Shell`, `Claude Code`, or `Codex` session. Open several. Switch tabs. Close the
-app, come back later — your sessions are still there.
-
-> **Install as an app:** in your phone browser, "Add to Home Screen" for a full-screen PWA.
+</details>
 
 ---
 
-## Desktop app
+## Desktop app (optional)
 
-Prefer a real window on your laptop/dev box? Grab the **[desktop app](https://github.com/naveenneog/cordless/releases/latest)**
-(Windows `.exe`, macOS `.dmg`, Linux `.AppImage`/`.deb`). It's a hardened Electron shell that opens the
-cordless UI in its own window and talks to your **local** daemon.
-
-- It renders the exact same UI the daemon serves, so your sessions, tabs, and replay all work identically.
-- **Pairing stays QR-first.** On top of that, when the local daemon is running the desktop app shows an
-  extra **🖥️ Connect to this computer** button that signs in with a loopback-only credential — a one-click
-  path for the machine you're sitting at. That credential is rejected for any non-loopback address (even a
-  Tailscale IP), so it can never be used remotely.
-- If the daemon isn't running, the app shows a **Start daemon / Retry** screen instead of a blank window.
-
-Build it yourself from `desktop/`:
-
-```bash
-cd desktop
-npm install
-npm start                # run the app against your local daemon
-npm run dist             # package installers for the current OS into desktop/release/
-```
-
-The desktop app is a **client only** — it never owns PTYs. Keep the daemon started separately with
-`cordless install` (see [Resume your sessions](#resume-your-sessions)).
+Prefer a windowed app? There's also an experimental **[desktop app](https://github.com/naveenneog/cordless/releases/latest)**
+(Electron; Windows `.exe`, macOS `.dmg`, Linux `.AppImage`/`.deb`) that opens the same UI in a window and
+talks to your local daemon with the loopback credential. The **CLI is the primary product**; the desktop
+app receives no further investment for now.
 
 ---
 
@@ -238,15 +224,31 @@ running child processes, shell variables, and unsaved interactive state cannot s
 ## CLI
 
 ```
-cordless start [--foreground]      run the daemon (serves the app + websocket on :7443)
+cordless                           open the dashboard (status + pairing QR + sessions)
+cordless --once                    print one dashboard frame and exit (non-interactive)
+
+cordless start [--foreground]      start the daemon (detached by default; --foreground = the service)
 cordless stop                      stop the running daemon
 cordless status                    is the daemon running?
-cordless pair                      create a single-use pairing QR/code for a new device
+cordless doctor                    diagnose daemon / Tailscale / firewall / profiles
+
+cordless pair                      show a single-use pairing QR/code for a new device
 cordless devices                   list paired devices
 cordless devices revoke <id>       revoke a device's token
+
+cordless sessions                  list sessions
+cordless new [shell|claude|codex]  start a session (--cwd <dir> --title <t>)
+cordless attach <id>               attach to a session (detach: Ctrl-] then d)
+cordless kill <id>                 stop a session
+
 cordless install                   run the daemon automatically at login (auto-start)
 cordless uninstall [--purge]       remove the auto-start registration
 ```
+
+**The dashboard** (`cordless`, no args) is a full-screen TUI and a *thin client* of the persistent
+daemon — leaving it (`q` / `Ctrl‑C`) never stops the daemon, your PTYs, or the phone connection. It shows
+daemon/Tailscale status, a **live single‑use pairing QR** (with a countdown; press `p` to regenerate), and
+your session list; `↑/↓` selects, `Enter` attaches, `n` starts one, `x` kills, `d` manages devices.
 
 **Seamless resume:** run `cordless install` once and the daemon starts hidden at login. See
 **[Resume your sessions](#resume-your-sessions)** for the full flow.
@@ -258,20 +260,22 @@ Config and state live in `~/.cordless/` (override with `CORDLESS_HOME`): `config
 ## Development / tests
 
 ```bash
-npm test                       # spins up an isolated daemon and runs every suite:
-                               #   pty smoke, protocol E2E (pair->attach->input->reconnect->kill),
-                               #   security headers/Origin, desktop loopback credential + scope
-                               #   enforcement, and session restore across a daemon restart
+npm --prefix agent test        # spins up an isolated daemon and runs every suite: pty smoke, dashboard
+                               #   render, protocol E2E, security, desktop credential + loopback scope,
+                               #   daemon-owned pairing, CLI client, and session restore across a restart
 npm --prefix client run build  # rebuild the web client into agent/public
+npm --prefix agent run sea     # build the self-contained cordless binary into agent/dist-sea
 npm --prefix desktop test      # desktop credential/origin parsing unit tests
 ```
 
 ## Status
 
-v0.5 — persistent sessions, touch-first mobile client, in-app QR scanner, seamless login resume, a `>_<`
-brand logo, and a hardened **Electron desktop app** (Windows / macOS / Linux). Runs on a Windows / macOS /
-Linux dev box with an Android or iOS phone browser. The Android APK (Capacitor) and desktop installers are
-built via CI. See `CONTEXT.md` for the architecture and roadmap.
+v0.6 — **CLI‑first**: `cordless` is a self‑contained binary (its own Node runtime + `node-pty`, no install
+prerequisite) that opens a full‑screen terminal **dashboard** with a live pairing QR, session list, and
+in‑terminal attach. Daemon‑owned single‑use pairing (loopback‑minted). Also ships the Android APK and the
+persistent daemon with login autostart + session restore; the Electron desktop app is now optional. The
+self‑contained CLI (Windows / macOS / Linux), APK, and desktop app are built via CI. See `CONTEXT.md` for
+the architecture and roadmap.
 
 ## License
 

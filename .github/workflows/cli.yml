@@ -1,0 +1,71 @@
+name: Build CLI (self-contained)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            exe: agent/dist-sea/cordless.exe
+            artifact: cordless-cli-windows-x64.zip
+          - os: macos-latest
+            exe: agent/dist-sea/cordless
+            artifact: cordless-cli-macos-arm64.tar.gz
+          - os: ubuntu-latest
+            exe: agent/dist-sea/cordless
+            artifact: cordless-cli-linux-x64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build web client (-> agent/public)
+        run: |
+          npm --prefix client ci
+          npm --prefix client run build
+
+      - name: Install agent deps
+        run: npm --prefix agent ci
+
+      - name: Agent test harness
+        run: npm --prefix agent test
+
+      - name: Build self-contained CLI
+        run: npm --prefix agent run sea
+
+      - name: Smoke-test the packaged exe (start -> PTY -> stop)
+        run: node agent/build/smoke.mjs ${{ matrix.exe }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path agent/dist-sea/* -DestinationPath ${{ matrix.artifact }} -Force
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: tar -czf ${{ matrix.artifact }} -C agent/dist-sea .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}
+          fail_on_unmatched_files: false

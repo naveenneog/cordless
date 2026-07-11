@@ -46,11 +46,29 @@ execFileSync(NODE, ["--experimental-sea-config", path.join(OUT, "sea-config.json
 console.log("* copying node runtime ->", exeName);
 fs.copyFileSync(NODE, exe);
 
+// macOS refuses to run a modified signed binary; strip the signature before injecting.
+if (process.platform === "darwin") {
+  try {
+    execFileSync("codesign", ["--remove-signature", exe], { stdio: "inherit" });
+  } catch {
+    /* best effort */
+  }
+}
+
 console.log("* injecting blob (postject)");
 const postjectCli = path.join(AGENT, "node_modules", "postject", "dist", "cli.js");
 const args = [postjectCli, exe, "NODE_SEA_BLOB", path.join(OUT, "sea-prep.blob"), "--sentinel-fuse", "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"];
 if (process.platform === "darwin") args.push("--macho-segment-name", "NODE_SEA");
 execFileSync(NODE, args, { stdio: "inherit" });
+
+// Re-sign ad-hoc on macOS so Gatekeeper at least runs it locally (real signing is a release step).
+if (process.platform === "darwin") {
+  try {
+    execFileSync("codesign", ["--sign", "-", exe], { stdio: "inherit" });
+  } catch {
+    /* best effort */
+  }
+}
 
 console.log("* staging node-pty into resources/node_modules");
 const ptySrc = path.join(AGENT, "node_modules", "node-pty");
@@ -75,6 +93,8 @@ if (fs.existsSync(prebuilds)) {
 }
 
 fs.rmSync(path.join(OUT, "sea-prep.blob"), { force: true });
+fs.rmSync(path.join(OUT, "bundle.cjs"), { force: true });
+fs.rmSync(path.join(OUT, "sea-config.json"), { force: true });
 const mb = (fs.statSync(exe).size / 1e6).toFixed(1);
-console.log(`\nbuilt ${exe} (${mb} MB) + resources/node_modules/node-pty`);
+console.log(`\nbuilt ${exe} (${mb} MB) + resources/  (node-pty + web client)`);
 console.log("  test:  " + (isWin ? "dist-sea\\cordless.exe --once" : "dist-sea/cordless --once"));
