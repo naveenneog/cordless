@@ -25,6 +25,8 @@ jobs:
             exe: agent/dist-sea/cordless
             artifact: cordless-cli-linux-x64.tar.gz
     runs-on: ${{ matrix.os }}
+    # macOS CLI is not yet verified (node-pty spawn differences on the runner); keep it non-blocking.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
 

@@ -43,7 +43,16 @@ function resolveShell(cfg) {
     }
     return "powershell.exe";
   }
-  return process.env.SHELL || "/bin/bash";
+  // Unix: use $SHELL only if it actually exists, else a known-present shell. Spawning a missing
+  // path is what makes node-pty throw "posix_spawnp failed".
+  for (const c of [process.env.SHELL, "/bin/zsh", "/bin/bash", "/bin/sh"]) {
+    try {
+      if (c && fs.existsSync(c)) return c;
+    } catch {
+      /* ignore */
+    }
+  }
+  return "/bin/sh";
 }
 
 function validCwd(cwd) {
