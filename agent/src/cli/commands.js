@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import qrcode from "qrcode-terminal";
 import { DaemonClient, ensureDaemon, health, daemonBaseUrl } from "./client.js";
 import { attachSession } from "./attach.js";
-import { loadConfig, loadDevices } from "../state.js";
+import { loadConfig, loadDevices, loadWorkspaces, getWorkspace, saveWorkspace, deleteWorkspace } from "../state.js";
 import { discoverHosts } from "../pairing.js";
 import { runningPid } from "../service.js";
 import { VERSION } from "../version.js";
@@ -131,6 +131,67 @@ export async function runSearch(prefix, query, opts = {}) {
     for (const m of matches) console.log(`${String(m.line).padStart(5)}: ${m.text}`);
     console.log(`\n${matches.length} match(es) (retained scrollback only).`);
   });
+}
+
+// `cordless workspace save|open|list|delete <name>` — named session templates.
+// A workspace snapshots the running sessions' profile + cwd + title so you can reopen a whole
+// project layout (e.g. "Claude on api, Codex on web, a tests shell") with one command.
+export async function runWorkspace(sub, name) {
+  if (sub === "list" || !sub) {
+    const all = loadWorkspaces();
+    const names = Object.keys(all);
+    if (!names.length) {
+      console.log("no workspaces \u2014 create one with: cordless workspace save <name>");
+      return;
+    }
+    for (const n of names) {
+      const ws = all[n];
+      console.log(`${n.padEnd(20)} ${ws.sessions.length} session(s)  ${ws.sessions.map((s) => s.profile).join(", ")}`);
+    }
+    return;
+  }
+  if (sub === "delete") {
+    if (!name) return usageWorkspace();
+    console.log(deleteWorkspace(name) ? `deleted workspace '${name}'` : `no such workspace: ${name}`);
+    return;
+  }
+  if (sub === "save") {
+    if (!name) return usageWorkspace();
+    await withClient(async (c) => {
+      const running = (await c.listSessions()).filter((s) => s.state === "running");
+      const sessions = running.map((s) => ({ profile: s.profile, cwd: s.cwd, title: s.title }));
+      saveWorkspace(name, { sessions });
+      console.log(`saved workspace '${name}' with ${sessions.length} session(s).`);
+    });
+    return;
+  }
+  if (sub === "open") {
+    if (!name) return usageWorkspace();
+    const ws = getWorkspace(name);
+    if (!ws) {
+      console.error(`no such workspace: ${name}`);
+      process.exit(1);
+    }
+    await withClient(async (c) => {
+      let n = 0;
+      for (const t of ws.sessions) {
+        try {
+          await c.createSession(t.profile || "shell", { cwd: t.cwd, title: t.title });
+          n++;
+        } catch (e) {
+          console.error(`  ! failed to start ${t.profile} in ${t.cwd}: ${e.message}`);
+        }
+      }
+      console.log(`opened workspace '${name}': started ${n}/${ws.sessions.length} session(s). Run \`cordless\` to see them.`);
+    });
+    return;
+  }
+  usageWorkspace();
+}
+
+function usageWorkspace() {
+  console.error("usage: cordless workspace <save|open|list|delete> [name]");
+  process.exit(1);
 }
 
 export async function runKill(prefix) {

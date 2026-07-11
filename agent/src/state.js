@@ -12,6 +12,7 @@ const P = {
   devices: path.join(HOME, "devices.json"),
   pending: path.join(HOME, "pending-pairs.json"),
   sessions: path.join(HOME, "sessions.json"),
+  workspaces: path.join(HOME, "workspaces.json"),
 };
 
 export function ensureHome() {
@@ -188,6 +189,28 @@ export function loadSessionManifest() {
 }
 export function saveSessionManifest(list) {
   writeJSON(P.sessions, list);
+}
+
+// ---- Workspaces (named session templates) ----
+// A workspace is { name, sessions: [{ profile, cwd, title }], savedAt }. Stored as a name->ws map.
+export function loadWorkspaces() {
+  return readJSON(P.workspaces, {});
+}
+export function getWorkspace(name) {
+  return loadWorkspaces()[name] || null;
+}
+export function saveWorkspace(name, ws) {
+  const all = loadWorkspaces();
+  all[name] = { ...ws, name, savedAt: new Date().toISOString() };
+  writeJSON(P.workspaces, all);
+  return all[name];
+}
+export function deleteWorkspace(name) {
+  const all = loadWorkspaces();
+  if (!(name in all)) return false;
+  delete all[name];
+  writeJSON(P.workspaces, all);
+  return true;
 }
 
 // ---- Pending pairings (single-use, short-lived) ----
