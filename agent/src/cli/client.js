@@ -170,6 +170,12 @@ export class DaemonClient {
   pairingCancel(pairingId) {
     return this._rpc("pairing.cancel", { pairingId });
   }
+  tail(sessionId, lines = 50) {
+    return this._rpc("session.tail", { sessionId, lines }).then((m) => m.text || "");
+  }
+  search(sessionId, query, limit = 200) {
+    return this._rpc("session.search", { sessionId, query, limit }).then((m) => m.matches || []);
+  }
 
   close() {
     try {

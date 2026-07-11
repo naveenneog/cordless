@@ -453,6 +453,47 @@ class Session {
       .pop() || "";
     return last.length > 120 ? last.slice(0, 119) + "\u2026" : last;
   }
+
+  // ---- scrollback read / search (visible screen + retained scrollback) ----
+
+  // All buffer rows (scrollback + screen) as plain trimmed-right text.
+  _bufferLines() {
+    const lines = [];
+    try {
+      const b = this.term.buffer.active;
+      for (let y = 0; y < b.length; y++) {
+        const line = b.getLine(y);
+        lines.push(line ? line.translateToString(true) : "");
+      }
+    } catch {
+      /* buffer not ready */
+    }
+    return lines;
+  }
+
+  // Last `n` non-empty logical lines as a single string. Drained through the op queue for accuracy.
+  readTail(n = 50) {
+    return this._queueOp(() => {
+      const lines = this._bufferLines();
+      let end = lines.length;
+      while (end > 0 && !lines[end - 1].trim()) end--;
+      return lines.slice(Math.max(0, end - n), end).join("\n");
+    });
+  }
+
+  // Case-insensitive substring search over the retained buffer. Returns [{ line, text }].
+  readSearch(query, limit = 200) {
+    return this._queueOp(() => {
+      if (!query) return [];
+      const q = String(query).toLowerCase();
+      const lines = this._bufferLines();
+      const matches = [];
+      for (let y = 0; y < lines.length && matches.length < limit; y++) {
+        if (lines[y].toLowerCase().includes(q)) matches.push({ line: y, text: lines[y].slice(0, 200) });
+      }
+      return matches;
+    });
+  }
 }
 
 export class SessionManager {

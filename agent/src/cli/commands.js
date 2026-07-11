@@ -1,5 +1,5 @@
 // `cordless` subcommands that talk to the local daemon over the loopback client.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import qrcode from "qrcode-terminal";
 import { DaemonClient, ensureDaemon, health, daemonBaseUrl } from "./client.js";
 import { attachSession } from "./attach.js";
@@ -74,6 +74,62 @@ export async function runNew(profile = "shell", opts = {}) {
   await withClient(async (c) => {
     const id = await c.createSession(profile, opts);
     console.log(`started ${profile} (${id.slice(0, 8)}). Attach with: cordless attach ${id.slice(0, 8)}`);
+  });
+}
+
+// Copy text to the OS clipboard (best effort, cross-platform). Returns true on success.
+function copyToClipboard(text) {
+  const tools = process.platform === "win32"
+    ? [["clip", []]]
+    : process.platform === "darwin"
+      ? [["pbcopy", []]]
+      : [["wl-copy", []], ["xclip", ["-selection", "clipboard"]], ["xsel", ["--clipboard", "--input"]]];
+  for (const [cmd, args] of tools) {
+    try {
+      if (spawnSync(cmd, args, { input: text }).status === 0) return true;
+    } catch {
+      /* try the next tool */
+    }
+  }
+  return false;
+}
+
+// `cordless output <session> [--lines N] [--copy]` — print (or copy) the last N lines of a session.
+export async function runOutput(prefix, opts = {}) {
+  if (!prefix) {
+    console.error("usage: cordless output <session-id-or-prefix> [--lines N] [--copy]");
+    process.exit(1);
+  }
+  await withClient(async (c) => {
+    const id = await resolveId(c, prefix);
+    const text = await c.tail(id, opts.lines || 50);
+    if (opts.copy) {
+      if (copyToClipboard(text)) console.log(`copied ${text.split("\n").length} lines to the clipboard.`);
+      else {
+        console.error("(no clipboard tool found; printing instead)\n");
+        console.log(text);
+      }
+    } else {
+      console.log(text);
+    }
+  });
+}
+
+// `cordless search <session> <query> [--limit N]` — search a session's retained scrollback.
+export async function runSearch(prefix, query, opts = {}) {
+  if (!prefix || !query) {
+    console.error("usage: cordless search <session-id-or-prefix> <query> [--limit N]");
+    process.exit(1);
+  }
+  await withClient(async (c) => {
+    const id = await resolveId(c, prefix);
+    const matches = await c.search(id, query, opts.limit || 200);
+    if (!matches.length) {
+      console.log(`no matches for "${query}" in the retained scrollback.`);
+      return;
+    }
+    for (const m of matches) console.log(`${String(m.line).padStart(5)}: ${m.text}`);
+    console.log(`\n${matches.length} match(es) (retained scrollback only).`);
   });
 }
 

@@ -25,6 +25,8 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless sessions              list sessions
   cordless new [shell|claude|codex] [--cwd <dir>] [--title <t>]
   cordless attach <id>           attach to a session (detach: Ctrl-] then d)
+  cordless output <id> [--lines N] [--copy]   print/copy a session's last output
+  cordless search <id> <query>   search a session's retained scrollback
   cordless kill <id>             stop a session
 
   cordless install               start the daemon automatically at login
@@ -103,6 +105,22 @@ async function main() {
     case "attach": {
       const { runAttach } = await import("./cli/commands.js");
       await runAttach(args[0]);
+      break;
+    }
+    case "output": {
+      const { runOutput } = await import("./cli/commands.js");
+      const lines = optValue("--lines") || optValue("-n");
+      await runOutput(args[0] && !args[0].startsWith("-") ? args[0] : undefined, {
+        lines: lines ? parseInt(lines, 10) : undefined,
+        copy: args.includes("--copy"),
+      });
+      break;
+    }
+    case "search": {
+      const { runSearch } = await import("./cli/commands.js");
+      const limit = optValue("--limit");
+      const positionals = args.filter((a) => !a.startsWith("-"));
+      await runSearch(positionals[0], positionals.slice(1).join(" "), { limit: limit ? parseInt(limit, 10) : undefined });
       break;
     }
     case "kill": {

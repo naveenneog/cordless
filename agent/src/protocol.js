@@ -88,6 +88,23 @@ const SessionAttentionClear = z.object({
   revision: z.number().int().nonnegative().optional(),
 });
 
+// Read the last N lines of a session's retained buffer (copy last output).
+const SessionTail = z.object({
+  type: z.literal("session.tail"),
+  requestId,
+  sessionId,
+  lines: z.number().int().min(1).max(5000).optional(),
+});
+
+// Search a session's retained scrollback.
+const SessionSearch = z.object({
+  type: z.literal("session.search"),
+  requestId,
+  sessionId,
+  query: z.string().min(1).max(200),
+  limit: z.number().int().min(1).max(1000).optional(),
+});
+
 export const ClientMessage = z.discriminatedUnion("type", [
   Hello,
   SessionList,
@@ -101,6 +118,8 @@ export const ClientMessage = z.discriminatedUnion("type", [
   PairingCreate,
   PairingCancel,
   SessionAttentionClear,
+  SessionTail,
+  SessionSearch,
 ]);
 
 // ---- Outgoing frame builders ----
@@ -152,6 +171,8 @@ export const out = {
     attentionConfidence,
     attentionRevision,
   }),
+  sessionTail: (requestId, sessionId, text) => ({ type: "session.tail.result", requestId, ok: true, sessionId, text }),
+  sessionSearch: (requestId, sessionId, matches) => ({ type: "session.search.result", requestId, ok: true, sessionId, matches }),
   pairingCreateResult: (requestId, { pairingId, urls, preferredUrl, code, route, expiresAt }) => ({
     type: "pairing.create.result",
     requestId,

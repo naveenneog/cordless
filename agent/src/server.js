@@ -481,6 +481,28 @@ export async function runServer() {
         break;
       }
 
+      case "session.tail": {
+        const sess = mgr.get(m.sessionId);
+        if (!sess) {
+          safeSend(ws, out.error("session.tail.result", m.requestId, "no_session", "unknown session"));
+          break;
+        }
+        const text = await sess.readTail(m.lines || 50);
+        safeSend(ws, out.sessionTail(m.requestId, m.sessionId, text));
+        break;
+      }
+
+      case "session.search": {
+        const sess = mgr.get(m.sessionId);
+        if (!sess) {
+          safeSend(ws, out.error("session.search.result", m.requestId, "no_session", "unknown session"));
+          break;
+        }
+        const matches = await sess.readSearch(m.query, m.limit || 200);
+        safeSend(ws, out.sessionSearch(m.requestId, m.sessionId, matches));
+        break;
+      }
+
       case "pairing.create": {
         // Only the loopback desktop/CLI credential may mint pairing codes, and only from a real
         // loopback socket peer (never trusted from headers). This is the daemon-owned mint that
