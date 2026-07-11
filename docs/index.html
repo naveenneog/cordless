@@ -32,6 +32,8 @@
       .hero img { display: block; width: 100%; }
       section { padding: 40px 0; }
       h2 { font-size: 26px; margin: 0 0 18px; }
+      h3 { font-size: 18px; margin: 22px 0 8px; color: var(--fg); }
+      .card h3 { margin: 0 0 6px; font-size: 17px; }
       .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
       .card { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
       .card h3 { margin: 0 0 6px; font-size: 17px; }
@@ -82,21 +84,82 @@
       </section>
 
       <section>
-        <h2>Quick start</h2>
-        <pre># on your dev box / laptop
-git clone https://github.com/naveenneog/cordless
-cd cordless
-npm run setup      # installs agent + client deps
-npm run build      # builds the web client
-npm start          # starts the daemon on :7443
-
-# in another terminal — pair your phone
-npm run pair       # scan the QR with your phone camera</pre>
-        <p style="color: var(--muted)">
-          Scanning the QR opens the app in your phone browser and pairs automatically. For access from
-          anywhere, install <a href="https://tailscale.com">Tailscale</a> on both devices.
+        <h2>Requirements</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Dev box (runs the daemon)</h3>
+            <p>
+              <strong>Node.js ≥ 20</strong> (LTS) and <strong>git</strong>. Windows, macOS, or Linux.
+              The daemon builds one native module (<code>node-pty</code>) — it ships prebuilds, but if
+              yours needs compiling you'll want the platform build tools (VS Build Tools on Windows,
+              <code>build-essential</code>+Python on Linux, Xcode CLT on macOS).
+            </p>
+          </div>
+          <div class="card">
+            <h3>Phone</h3>
+            <p>
+              Any modern browser (install the <strong>PWA</strong>), or Android 8.0+ for the
+              <strong>APK</strong>. Nothing else to install.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Remote access (optional)</h3>
+            <p>
+              <a href="https://tailscale.com">Tailscale</a> on the dev box <em>and</em> phone for
+              secure access from anywhere. Same-Wi-Fi LAN needs nothing extra.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Only if you build the APK yourself</h3>
+            <p>
+              <strong>Node ≥ 22</strong>, <strong>JDK 21</strong>, and the <strong>Android SDK</strong>
+              (platform 34+, build-tools 34+). Most people just grab the prebuilt APK from Releases.
+            </p>
+          </div>
+        </div>
+        <p style="color: var(--muted); font-size: 14px; margin-top: 14px">
+          <strong>Dependencies:</strong> the daemon uses <code>node-pty</code>, <code>ws</code>,
+          <code>zod</code>, <code>@xterm/headless</code>, <code>@xterm/addon-serialize</code>,
+          <code>qrcode-terminal</code>. The app uses <code>@xterm/xterm</code> (+ fit),
+          <code>react</code>/<code>vite</code>, and <code>@capacitor/*</code>
+          (<code>core</code>, <code>app</code>, <code>barcode-scanner</code>). All pulled by
+          <code>npm run setup</code>.
         </p>
       </section>
+
+      <section>
+        <h2>Install</h2>
+        <h3>1 · On your dev box / laptop</h3>
+        <pre>git clone https://github.com/naveenneog/cordless
+cd cordless
+npm run setup      # installs the agent + client dependencies
+npm run build      # builds the web app the daemon serves
+npm start          # starts the daemon on :7443
+
+# (optional) run it automatically at every login — seamless resume:
+node agent/src/index.js install</pre>
+        <h3>2 · Pair your phone</h3>
+        <pre># in another terminal:
+npm run pair       # prints a QR + a pairing code</pre>
+        <p style="color: var(--muted)">
+          <strong>PWA:</strong> scan the QR in your phone's browser (or open the printed URL) — it pairs
+          automatically; then "Add to Home Screen".<br />
+          <strong>Android APK:</strong> download
+          <a href="https://github.com/naveenneog/cordless/releases/latest">cordless-vX.Y.Z.apk</a>,
+          install it, open the app, tap <strong>Scan QR</strong> (or type the server URL + code).
+        </p>
+        <h3>3 · From anywhere</h3>
+        <p style="color: var(--muted)">
+          Install <a href="https://tailscale.com">Tailscale</a> on both devices and lock port 7443 to your
+          own devices with a tailnet ACL. Then <code>cordless pair</code> prints a stable
+          <code>*.ts.net</code> URL. Never expose 7443 to the public internet.
+        </p>
+        <p style="color: var(--muted); font-size: 14px">
+          Manage it: <code>cordless status</code> · <code>cordless stop</code> ·
+          <code>cordless devices</code> · <code>cordless uninstall</code>.
+        </p>
+      </section>
+
 
       <section>
         <h2>On your phone</h2>
