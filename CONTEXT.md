@@ -3,7 +3,32 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
-## v0.6 — CLI-first (current shape)
+## v0.7 — attention state + coder features (current)
+
+Built on the v0.6 CLI-first base. The differentiator for juggling many coding-agent sessions:
+
+- **Per-session attention state** (`agent/src/attention.js` + SessionManager). The daemon infers each
+  session's `activity` (working/idle/exited) + `attention` (prompt/bell/finished) purely from PTY output
+  — conservative heuristics (confirm/agent prompt patterns; shell prompts = readiness not attention;
+  alt-screen/pager suppression; BEL with input+startup guards; agent "finished" = shell prompt after
+  real activity). One manager-level 1s loop; pushed via `session.activity`, cleared via
+  `session.attention.clear`, included in `session.list` (+ `lastLine` preview). Dashboard badges +
+  attention-first sort + `c` mark-handled; `cordless sessions --attention`. Tests: attention.mjs (pure) +
+  attention_live.mjs.
+- **Notifications** (`agent/src/notifier.js`): optional ntfy / generic webhook on notify-worthy
+  transitions; strict anti-spam (per-revision, 60s cooldown, 5/min burst, quiet hours), async, secrets
+  redacted, no cloud owned. `config.json.notifications`; `cordless notify [status|test]`. test notifier.mjs.
+- **Copy last output + scrollback search**: `Session.readTail/readSearch` over the headless buffer;
+  `session.tail`/`session.search`; `cordless output <id> [--lines N] [--copy]`, `cordless search <id> <q>`.
+- **Workspaces**: `~/.cordless/workspaces.json`; `cordless workspace save|open|list|delete` (named
+  templates of profile+cwd+title). test workspace.mjs.
+
+`npm --prefix agent test` harness is 15/15. Each feature shipped on its own branch (feature/attention-
+state, /notifications, /output-search, /workspaces) merged --no-ff. Deferred (per Sol): profile-completion
+wrapper for reliable "finished", file transfer, `cordless run`, broadcast input, read-only share, web
+SearchAddon, Web Push.
+
+## v0.6 — CLI-first
 
 cordless is now **CLI-first**: `cordless` (no args) opens a full-screen terminal **dashboard** (a thin
 client of the persistent daemon) showing daemon/Tailscale status, a **live single-use pairing QR** (with

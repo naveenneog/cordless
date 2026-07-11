@@ -236,19 +236,33 @@ cordless pair                      show a single-use pairing QR/code for a new d
 cordless devices                   list paired devices
 cordless devices revoke <id>       revoke a device's token
 
-cordless sessions                  list sessions
+cordless sessions [--attention]    list sessions (or only those needing attention)
 cordless new [shell|claude|codex]  start a session (--cwd <dir> --title <t>)
 cordless attach <id>               attach to a session (detach: Ctrl-] then d)
+cordless output <id> [--lines N] [--copy]   print/copy a session's last output
+cordless search <id> <query>       search a session's retained scrollback
 cordless kill <id>                 stop a session
+cordless workspace <save|open|list|delete> [name]   named session templates
+
+cordless notify [status|test]      attention notifications (ntfy / webhook)
 
 cordless install                   run the daemon automatically at login (auto-start)
 cordless uninstall [--purge]       remove the auto-start registration
 ```
 
+**Attention state — juggle many agents.** cordless watches each session's output and infers whether it
+is **working**, **idle**, or **waiting for you** (a confirmation prompt, a bell, or an agent that just
+finished). The dashboard badges and sorts attention-first (`! waiting`, `‼ bell`, `✓ finished`), so across
+eight Claude/Codex sessions you can see at a glance which one needs you; press `c` to mark it handled. It's
+conservative — a silent build is *idle*, and a bare shell prompt is *readiness*, not a request. Opt into a
+push when a session needs you by configuring **ntfy** or a **webhook** in `config.json` (`cordless notify
+test` to verify) — no cloud owned by cordless, strict anti-spam.
+
 **The dashboard** (`cordless`, no args) is a full-screen TUI and a *thin client* of the persistent
 daemon — leaving it (`q` / `Ctrl‑C`) never stops the daemon, your PTYs, or the phone connection. It shows
 daemon/Tailscale status, a **live single‑use pairing QR** (with a countdown; press `p` to regenerate), and
-your session list; `↑/↓` selects, `Enter` attaches, `n` starts one, `x` kills, `d` manages devices.
+your attention-sorted session list; `↑/↓` selects, `Enter` attaches, `n` starts one, `c` marks handled,
+`x` kills, `d` manages devices.
 
 **Seamless resume:** run `cordless install` once and the daemon starts hidden at login. See
 **[Resume your sessions](#resume-your-sessions)** for the full flow.
@@ -270,12 +284,14 @@ npm --prefix desktop test      # desktop credential/origin parsing unit tests
 
 ## Status
 
-v0.6 — **CLI‑first**: `cordless` is a self‑contained binary (its own Node runtime + `node-pty`, no install
-prerequisite) that opens a full‑screen terminal **dashboard** with a live pairing QR, session list, and
-in‑terminal attach. Daemon‑owned single‑use pairing (loopback‑minted). Also ships the Android APK and the
-persistent daemon with login autostart + session restore; the Electron desktop app is now optional. The
-self‑contained CLI (Windows / macOS / Linux), APK, and desktop app are built via CI. See `CONTEXT.md` for
-the architecture and roadmap.
+v0.7 — **CLI‑first with attention state.** `cordless` is a self‑contained binary (its own Node runtime +
+`node-pty`, no prerequisite) that opens a full‑screen terminal **dashboard** with a live pairing QR,
+in‑terminal attach, and — the differentiator — **per‑session attention state** (working / idle / waiting /
+bell / finished) so you can juggle many Claude/Codex sessions and see which needs you. Plus optional
+**ntfy/webhook notifications**, **copy last output** + **scrollback search**, and named **workspaces**.
+Daemon‑owned single‑use pairing (loopback‑minted); persistent daemon with login autostart + session
+restore. Ships the self‑contained CLI (Windows / Linux; macOS built but pending a `node-pty` fix), the
+Android APK, and an optional Electron desktop app, all via CI. See `CONTEXT.md` for the architecture.
 
 ## License
 
