@@ -5,6 +5,11 @@
   "description": "cordless Desktop — hardened Electron shell for the local cordless daemon",
   "author": "naveenneog",
   "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://github.com/naveenneog/cordless#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/naveenneog/cordless.git"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -22,6 +27,7 @@
     "appId": "com.naveenneog.cordless.desktop",
     "productName": "cordless",
     "copyright": "Copyright naveenneog",
+    "publish": null,
     "directories": {
       "buildResources": "build",
       "output": "release"
@@ -38,7 +44,7 @@
       "perMachine": false
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": ["dmg"],
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.png"
     },
