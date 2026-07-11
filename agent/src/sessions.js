@@ -231,12 +231,14 @@ class Session {
     // A quiet session that was working becomes idle (bell/prompt attention is preserved).
     if (quietFor >= THRESHOLDS.IDLE_AFTER_MS && this.activity === "working") this._setActivity("idle");
     if (this._quietChecked) return;
+    // Defer (without marking checked) while the user's keypress grace or a bell hold is active, so the
+    // prompt check actually runs on a later tick instead of being skipped for this whole quiet cycle.
+    if (Date.now() - this._lastInputAt < THRESHOLDS.INPUT_GRACE_MS) return;
+    if (this._bellUntil > Date.now()) return;
     this._quietChecked = true;
     this._queueOp(() => {
       if (this.state !== "running") return;
       if (Date.now() - this._lastOutputAt < THRESHOLDS.PROMPT_QUIET_MS) return; // new output arrived
-      if (Date.now() - this._lastInputAt < THRESHOLDS.INPUT_GRACE_MS) return; // user just typed
-      if (this._bellUntil > Date.now()) return; // hold the bell badge
       const tail = this._tailLines(6);
       const res = looksLikePrompt(tail, { alternateScreen: this._alternateScreen });
       if (res.match) {
