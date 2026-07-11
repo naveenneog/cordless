@@ -22,6 +22,7 @@ export const THRESHOLDS = {
   INPUT_GRACE_MS: 2_000, // ignore prompt detection right after the user typed
   BELL_HOLD_MS: 30_000, // how long a bell badge is held if nothing else happens
   BELL_INPUT_GUARD_MS: 500, // ignore a BEL fired right after a keypress (likely an invalid-key beep)
+  STARTUP_GRACE_MS: 3_000, // ignore BELs during a session's first few seconds (shell/agent startup beeps)
 };
 
 /** High-confidence "please answer me" prompts (confirmations, choices, credential requests). */
