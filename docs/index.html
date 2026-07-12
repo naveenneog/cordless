@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>cordless — remote terminals in your pocket</title>
-    <meta name="description" content="Manage many remote terminal & coding-agent (Claude Code, Codex) sessions from your phone, like browser tabs." />
+    <meta name="description" content="cordless — a CLI-first remote terminal. Run cordless, scan the QR, and manage many Claude Code / Codex / shell sessions from your phone. Self-contained binary, no Node needed." />
     <link rel="icon" type="image/png" href="./icon.png" />
     <style>
       :root {
@@ -54,11 +54,11 @@
       <div class="wrap">
         <img src="./icon.png" alt="cordless logo" width="96" height="96" style="border-radius:22px;display:block;margin:0 auto 14px;box-shadow:0 10px 30px rgba(0,0,0,.5)" />
         <div class="brand">cordless</div>
-        <div class="tagline">Your remote terminals &amp; coding agents, in your pocket.</div>
+        <div class="tagline">A CLI-first remote terminal. Run <code>cordless</code>, scan the QR, drive your dev-box sessions from your phone.</div>
         <div class="cta">
-          <a class="btn primary" href="https://github.com/naveenneog/cordless">GitHub</a>
-          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases/latest">Download APK</a>
-          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases/latest">Desktop app</a>
+          <a class="btn primary" href="https://github.com/naveenneog/cordless/releases/latest">Download CLI</a>
+          <a class="btn ghost" href="https://github.com/naveenneog/cordless">GitHub</a>
+          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases/latest">Android APK</a>
         </div>
         <div class="hero"><img src="./screenshot.png" alt="cordless managing terminal sessions as tabs" /></div>
       </div>
@@ -68,20 +68,23 @@
       <section>
         <h2>What it is</h2>
         <p style="color: var(--muted); max-width: 720px">
-          cordless runs a tiny daemon on your dev box or laptop that owns real PTY sessions — a shell, or
-          <code>claude</code> / <code>codex</code>. A mobile app attaches to them like browser tabs. Sessions keep
-          running when you disconnect; reconnecting replays right where you left off.
+          cordless is a single self-contained command you install on your dev box or laptop. Run
+          <code>cordless</code> and it opens a full-screen terminal <strong>dashboard</strong> whose starting
+          screen shows a <strong>pairing QR</strong> — scan it with the phone app and your sessions (a shell,
+          <code>claude</code>, or <code>codex</code>) are in your pocket. Sessions keep running when you
+          disconnect; the daemon stays up after you close the dashboard, and reconnecting replays where you
+          left off.
         </p>
       </section>
 
       <section>
         <div class="grid">
+          <div class="card"><h3>CLI-first</h3><p>One self-contained binary (its own Node runtime + <code>node-pty</code>, no install prereq). Run <code>cordless</code> for a full-screen dashboard: status, a live pairing QR, and your sessions.</p></div>
+          <div class="card"><h3>Attention state</h3><p>Juggling many Claude / Codex sessions? cordless infers which is <em>working</em>, <em>idle</em>, or <em>waiting for you</em> from its output, badges and sorts them attention-first, and can ping your phone (ntfy / webhook).</p></div>
           <div class="card"><h3>Persistent sessions</h3><p>PTYs survive disconnects, network switches, and app backgrounding. Reconnect replays from your last-seen byte, or a full-screen snapshot.</p></div>
-          <div class="card"><h3>Tabs for terminals</h3><p>Run several Claude Code / Codex / shell sessions at once and switch instantly.</p></div>
-          <div class="card"><h3>Touch-first</h3><p>An on-screen key bar — Esc, Tab, Ctrl/Alt, arrows, Ctrl-C, pipes, paste — makes a real terminal usable with thumbs.</p></div>
+          <div class="card"><h3>Attach anywhere</h3><p><code>cordless attach &lt;id&gt;</code> streams a session into your terminal; the phone app gives you the same sessions with a touch key bar and QR scanner.</p></div>
           <div class="card"><h3>Reach it anywhere</h3><p>Tailscale is the recommended path; same-Wi-Fi LAN also works. No ports exposed to the internet.</p></div>
-          <div class="card"><h3>Secure by default</h3><p>Per-device tokens, single-use QR pairing, Origin allowlist, CSP, and a daemon that only ever runs as you.</p></div>
-          <div class="card"><h3>Web, native &amp; desktop</h3><p>Install the PWA from your phone browser, grab the Android APK, or run the hardened Electron desktop app on Windows / macOS / Linux.</p></div>
+          <div class="card"><h3>Secure by default</h3><p>Per-device tokens, single-use pairing codes only the local daemon can mint (loopback-only), Origin allowlist, CSP, and a daemon that only ever runs as you.</p></div>
         </div>
       </section>
 
@@ -89,12 +92,12 @@
         <h2>Requirements</h2>
         <div class="grid">
           <div class="card">
-            <h3>Dev box (runs the daemon)</h3>
+            <h3>Dev box (runs cordless)</h3>
             <p>
-              <strong>Node.js ≥ 20</strong> (LTS) and <strong>git</strong>. Windows, macOS, or Linux.
-              The daemon builds one native module (<code>node-pty</code>) — it ships prebuilds, but if
-              yours needs compiling you'll want the platform build tools (VS Build Tools on Windows,
-              <code>build-essential</code>+Python on Linux, Xcode CLT on macOS).
+              <strong>Nothing.</strong> The cordless CLI is a self-contained binary (its own Node runtime +
+              <code>node-pty</code>) for Windows or Linux. Optional: coding agents on <code>PATH</code>
+              (<code>claude</code>, <code>codex</code>) if you want those profiles. <em>(Building from source
+              needs Node 22+ and a C/C++ toolchain for <code>node-pty</code>.)</em>
             </p>
           </div>
           <div class="card">
@@ -120,54 +123,66 @@
           </div>
         </div>
         <p style="color: var(--muted); font-size: 14px; margin-top: 14px">
-          <strong>Dependencies:</strong> the daemon uses <code>node-pty</code>, <code>ws</code>,
+          <strong>Zero dependencies to install</strong> — the CLI binary bundles the Node runtime and
+          <code>node-pty</code>. Under the hood the daemon uses <code>node-pty</code>, <code>ws</code>,
           <code>zod</code>, <code>@xterm/headless</code>, <code>@xterm/addon-serialize</code>,
-          <code>qrcode-terminal</code>. The app uses <code>@xterm/xterm</code> (+ fit),
-          <code>react</code>/<code>vite</code>, and <code>@capacitor/*</code>
-          (<code>core</code>, <code>app</code>, <code>barcode-scanner</code>). All pulled by
-          <code>npm run setup</code>.
+          <code>qrcode-terminal</code>; the phone app uses <code>@xterm/xterm</code>,
+          <code>react</code>/<code>vite</code>, and <code>@capacitor/*</code> — all pulled by
+          <code>npm run setup</code> if you build from source.
         </p>
       </section>
 
       <section>
         <h2>Install</h2>
-        <h3>1 · On your dev box / laptop</h3>
-        <pre>git clone https://github.com/naveenneog/cordless
-cd cordless
-npm run setup      # installs the agent + client dependencies
-npm run build      # builds the web app the daemon serves
-npm start          # starts the daemon on :7443
-
-# (optional) run it automatically at every login — seamless resume:
-node agent/src/index.js install</pre>
-        <h3>2 · Pair your phone</h3>
-        <pre># in another terminal:
-npm run pair       # prints a QR + a pairing code</pre>
+        <h3>1 · Install cordless on your dev box / laptop</h3>
         <p style="color: var(--muted)">
-          <strong>PWA:</strong> scan the QR in your phone's browser (or open the printed URL) — it pairs
-          automatically; then "Add to Home Screen".<br />
-          <strong>Android APK:</strong> download
-          <a href="https://github.com/naveenneog/cordless/releases/latest">cordless-vX.Y.Z.apk</a>,
-          install it, open the app, tap <strong>Scan QR</strong> (or type the server URL + code).
+          Download the self-contained <strong>cordless CLI</strong> from
+          <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a> and unpack it — it
+          bundles its own Node runtime <em>and</em> <code>node-pty</code>, so there's
+          <strong>nothing to install first</strong>.
+        </p>
+        <pre>Windows   cordless-cli-windows-x64.zip    →  run cordless.exe
+Linux     cordless-cli-linux-x64.tar.gz   →  run ./cordless
+macOS     use the desktop app, or build from source (CLI binary coming)</pre>
+        <p style="color: var(--muted)">Put it on your <code>PATH</code>, then just run it:</p>
+        <pre>cordless            # opens the dashboard: daemon status + a pairing QR + your sessions
+cordless install    # keep the daemon running at login, so your sessions are always there</pre>
+        <h3>2 · Pair your phone</h3>
+        <p style="color: var(--muted)">
+          The dashboard's starting screen shows a <strong>QR</strong>. Install the
+          <a href="https://github.com/naveenneog/cordless/releases/latest">Android app</a>, tap
+          <strong>Scan QR</strong>, and scan it. (Or press <code>p</code> for a fresh code, run
+          <code>cordless pair</code>, or open the printed URL in your phone's browser as a PWA.)
         </p>
         <h3>3 · From anywhere</h3>
         <p style="color: var(--muted)">
-          Install <a href="https://tailscale.com">Tailscale</a> on both devices and lock port 7443 to your
-          own devices with a tailnet ACL. Then <code>cordless pair</code> prints a stable
-          <code>*.ts.net</code> URL. Never expose 7443 to the public internet.
+          Put the dev box <em>and</em> phone on the same <a href="https://tailscale.com">Tailscale</a> tailnet
+          and lock port 7443 to your own devices with a tailnet ACL. Then the pairing QR uses a stable
+          <code>100.x</code> / <code>*.ts.net</code> address. Never expose 7443 to the public internet.
         </p>
         <p style="color: var(--muted); font-size: 14px">
-          Manage it: <code>cordless status</code> · <code>cordless stop</code> ·
-          <code>cordless devices</code> · <code>cordless uninstall</code>.
+          Manage it: <code>cordless status</code> · <code>cordless doctor</code> ·
+          <code>cordless sessions</code> · <code>cordless attach &lt;id&gt;</code> ·
+          <code>cordless notify test</code> · <code>cordless stop</code>.
         </p>
+        <details style="margin-top: 14px; color: var(--muted)">
+          <summary style="cursor: pointer">Prefer to run from source? (Node 22+)</summary>
+          <pre>git clone https://github.com/naveenneog/cordless
+cd cordless
+npm run setup      # installs agent + client deps (builds node-pty)
+npm run build      # builds the web client the daemon serves
+npm start          # starts the daemon on :7443  —  then run `node agent/src/index.js` for the dashboard
+
+npm --prefix agent run sea   # build a self-contained cordless binary into agent/dist-sea/</pre>
+        </details>
       </section>
 
       <section>
-        <h2>Desktop app</h2>
+        <h2>Desktop app (optional)</h2>
         <p style="color: var(--muted); max-width: 720px">
-          A hardened <strong>Electron</strong> shell opens the cordless UI in its own window on your
-          laptop or dev box, talking to your <strong>local</strong> daemon. Same sessions, tabs, and replay
-          as the phone — with a real keyboard.
+          The CLI is the primary way to run cordless. If you'd rather have a window, a hardened
+          <strong>Electron</strong> shell opens the same UI on your laptop or dev box, talking to your
+          <strong>local</strong> daemon. Same sessions, tabs, and replay as the phone — with a real keyboard.
         </p>
         <div class="grid">
           <div class="card"><h3>QR-first auth</h3><p>Pairing stays QR/code based. The desktop adds one extra <strong>🖥️ Connect to this computer</strong> button backed by a loopback-only credential.</p></div>
