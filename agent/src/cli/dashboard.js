@@ -379,8 +379,11 @@ export async function runDashboard({ once = false } = {}) {
 
   enter();
   refreshTimer = setInterval(async () => {
-    if (!alive || mode !== "dash") {
-      if (alive) render();
+    // Do nothing while attached to a session (state.interactive is false between leave() and enter()),
+    // otherwise the dashboard would repaint over the attached PTY.
+    if (!alive || !state.interactive) return;
+    if (mode !== "dash") {
+      render(); // devices view: keep it repainting
       return;
     }
     ticks++;
