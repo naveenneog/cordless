@@ -45,6 +45,7 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
   const [, force] = useReducer((x) => x + 1, 0);
   const [sheet, setSheet] = useState(false);
   const [detailsFor, setDetailsFor] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>("all");
 
   useEffect(() => {
     conn.start();
@@ -56,6 +57,7 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
   }, [conn]);
 
   const tabs = conn.getTabsView();
+  const groups = conn.getGroups();
 
   useEffect(() => {
     if (conn.state === "ready" && tabs.length === 0) setSheet(true);
@@ -110,6 +112,9 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
 
       <TabStrip
         tabs={tabs}
+        groups={groups}
+        filter={filter}
+        onFilter={setFilter}
         onSelect={(id) => conn.setActive(id)}
         onNew={() => setSheet(true)}
         onClose={(id) => conn.closeTab(id)}
@@ -151,10 +156,23 @@ function Workspace({ creds, onLogout }: { creds: Creds; onLogout: () => void }) 
           return (
             <SessionDetails
               detail={d}
+              groups={groups}
               onClose={() => setDetailsFor(null)}
               onKill={() => {
                 if (confirm("Kill this session?")) conn.killSession(detailsFor);
                 setDetailsFor(null);
+              }}
+              onRename={(title) => {
+                void conn.renameSession(detailsFor, title).catch((e) => alert("Rename failed: " + (e as Error).message));
+              }}
+              onAssign={(groupId) => {
+                void conn.assignGroup(detailsFor, groupId).catch((e) => alert("Move failed: " + (e as Error).message));
+              }}
+              onCreateGroup={(name) => {
+                void conn
+                  .createGroup(name)
+                  .then((g) => conn.assignGroup(detailsFor, g.id))
+                  .catch((e) => alert("Create group failed: " + (e as Error).message));
               }}
             />
           );

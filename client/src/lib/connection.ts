@@ -2,7 +2,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Creds, getServerBase, wsUrl } from "./storage";
-import type { OutputFrame, ExitFrame, SessionSummary, SessionState } from "./protocol";
+import type { OutputFrame, ExitFrame, SessionSummary, SessionState, SessionGroup } from "./protocol";
 
 type ConnState = "closed" | "connecting" | "authenticating" | "ready";
 
@@ -44,6 +44,7 @@ interface Tab {
   title: string;
   profile: string;
   cwd: string;
+  groupId: string | null;
   generation: string | null;
   state: SessionState;
   exitCode: number | null;
@@ -74,6 +75,7 @@ export interface TabView {
   title: string;
   profile: string;
   cwd: string;
+  groupId: string | null;
   state: SessionState;
   exitCode: number | null;
   unread: boolean;
@@ -126,6 +128,7 @@ export class Connection {
 
   activeId: string | null = null;
   tabs = new Map<string, Tab>();
+  groups: SessionGroup[] = []; // tab groups (from group.list + groups.updated)
   private locallyClosed = new Set<string>();
   ctrlLatch = false;
   altLatch = false;
@@ -163,11 +166,16 @@ export class Connection {
       title: t.title,
       profile: t.profile,
       cwd: t.cwd,
+      groupId: t.groupId,
       state: t.state,
       exitCode: t.exitCode,
       unread: t.unread,
       active: t.sessionId === this.activeId,
     }));
+  }
+
+  getGroups(): SessionGroup[] {
+    return [...this.groups].sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
   getSessionDetail(sessionId: string) {
@@ -178,6 +186,7 @@ export class Connection {
       title: t.title,
       cwd: t.cwd,
       profile: t.profile,
+      groupId: t.groupId,
       state: t.state,
       exitCode: t.exitCode,
       host: this.base,
@@ -381,6 +390,7 @@ export class Connection {
           this.emit();
           this.startWatchdog();
           this.startListPoll();
+          void this.request({ type: "group.list" }).catch(() => {});
           await this.onReady(epoch);
         } else {
           this.lastError = m.error?.message || "auth failed";
@@ -398,6 +408,24 @@ export class Connection {
         this.onList(m.sessions as SessionSummary[]);
         this.resolveRequest(m);
         break;
+      case "group.list.result":
+        this.groups = (m.groups as SessionGroup[]) || [];
+        this.emit();
+        this.resolveRequest(m);
+        break;
+      case "groups.updated":
+        this.groups = (m.groups as SessionGroup[]) || [];
+        this.emit();
+        break;
+      case "session.updated": {
+        const t = this.tabs.get(m.sessionId);
+        if (t && m.changes) {
+          if (typeof m.changes.title === "string") t.title = m.changes.title;
+          if ("groupId" in m.changes) t.groupId = m.changes.groupId ?? null;
+          this.emit();
+        }
+        break;
+      }
       default:
         if (m.requestId) this.resolveRequest(m);
     }
@@ -569,6 +597,7 @@ export class Connection {
         this.tabs.set(s.sessionId, t);
       }
       t.title = s.title;
+      t.groupId = s.groupId ?? null;
       t.state = s.state;
       t.exitCode = s.exitCode;
       if (s.cwd) t.cwd = s.cwd;
@@ -625,6 +654,7 @@ export class Connection {
       title: s.title,
       profile: s.profile,
       cwd: s.cwd || "",
+      groupId: s.groupId ?? null,
       generation: s.generation ?? null,
       state: s.state,
       exitCode: s.exitCode,
@@ -803,6 +833,36 @@ export class Connection {
   async killSession(sessionId: string) {
     await this.request({ type: "session.kill", sessionId, mode: "graceful" }).catch(() => {});
     this.closeTab(sessionId);
+  }
+
+  async renameSession(sessionId: string, title: string) {
+    const res = await this.request({ type: "session.rename", sessionId, title });
+    const t = this.tabs.get(sessionId);
+    if (t && typeof res.title === "string") t.title = res.title;
+    this.emit();
+    return res;
+  }
+
+  async assignGroup(sessionId: string, groupId: string | null) {
+    await this.request({ type: "group.assign", sessionId, groupId });
+    const t = this.tabs.get(sessionId);
+    if (t) t.groupId = groupId;
+    this.emit();
+  }
+
+  async createGroup(name: string, color?: string) {
+    const res = await this.request({ type: "group.create", name, color });
+    if (res.group) {
+      this.groups = [...this.groups.filter((g) => g.id !== res.group.id), res.group];
+      this.emit();
+    }
+    return res.group as SessionGroup;
+  }
+
+  async deleteGroup(groupId: string) {
+    await this.request({ type: "group.delete", groupId }).catch(() => {});
+    this.groups = this.groups.filter((g) => g.id !== groupId);
+    this.emit();
   }
 
   // Remove a tab locally (detach + dispose). Does not kill the remote session.

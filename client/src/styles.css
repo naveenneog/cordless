@@ -460,3 +460,43 @@ button.cancel {
   background: transparent;
   color: var(--muted);
 }
+
+/* ---- tab groups (feature/group-ui-phone) ---- */
+.tabsWrap { display: flex; flex-direction: column; }
+.filterbar {
+  display: flex; gap: 6px; overflow-x: auto; padding: 6px 8px 2px;
+  border-bottom: 1px solid var(--line); scrollbar-width: none;
+}
+.filterbar::-webkit-scrollbar { display: none; }
+.fchip {
+  --chip: var(--muted);
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  padding: 4px 10px; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--bg2); color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.fchip.on { color: var(--fg); border-color: var(--chip); background: color-mix(in srgb, var(--chip) 18%, var(--bg2)); }
+.fchip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--chip); }
+.fchip-count {
+  min-width: 16px; text-align: center; font-size: 11px; padding: 0 4px;
+  border-radius: 8px; background: var(--bg3); color: var(--muted);
+}
+.groupdot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; margin-right: 2px; }
+
+/* rename + group picker in the details sheet */
+.rename-row { display: flex; gap: 8px; flex: 1; }
+.rename-input {
+  flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 14px;
+}
+.mini-btn {
+  padding: 6px 12px; border-radius: 8px; border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg2)); color: var(--fg); cursor: pointer;
+}
+.group-picker { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.group-picker .chip {
+  --chip: var(--muted);
+  display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--bg2); color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.group-picker .chip.on { color: var(--fg); border-color: var(--chip); background: color-mix(in srgb, var(--chip) 22%, var(--bg2)); }
+.group-picker .chip.new { border-style: dashed; }
