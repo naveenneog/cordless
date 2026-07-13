@@ -914,6 +914,10 @@ export class SessionManager {
   // restart / reboot (fresh shells in the same dirs — like a browser reopening tabs).
   _persistManifest() {
     if (this.cfg.restoreSessions === false) return;
+    // During shutdown, each PTY's exit fires _onExit -> _persistManifest with the session already
+    // marked "exited"; rewriting the manifest here would drop the very sessions we want to reopen.
+    // Keep the last pre-shutdown manifest (running sessions) intact for the restore.
+    if (this._shuttingDown) return;
     const running = [...this.sessions.values()]
       .filter((s) => s.state === "running")
       .map((s) => ({ sessionId: s.id, profile: s.profile, cwd: s.cwd, title: s.title, cols: s.cols, rows: s.rows, groupId: s.groupId, groupOrder: s.groupOrder }));

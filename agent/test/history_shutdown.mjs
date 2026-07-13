@@ -3,7 +3,7 @@
 // handler. shutdown() must PRESERVE history for the restore. Tested directly (the harness's SIGTERM
 // can't trigger graceful shutdown on Windows).
 import { SessionManager } from "../src/sessions.js";
-import { loadSessionHistory } from "../src/state.js";
+import { loadSessionHistory, loadSessionManifest } from "../src/state.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -23,12 +23,14 @@ const s = [...mgr.sessions.values()][0];
 await sleep(1500); // let the shell emit its prompt
 s._saveHistoryNow();
 ok(loadSessionHistory(s.id) !== null, "history is persisted while the session runs");
+ok(loadSessionManifest().some((e) => e.sessionId === s.id), "the running session is in the restore manifest");
 
 // Graceful shutdown: saves history, then kills the PTY (which fires _onExit).
 mgr.shutdown();
 await sleep(1500); // let the PTY exit handler run
 
 ok(loadSessionHistory(s.id) !== null, "graceful shutdown PRESERVES history for the restore");
+ok(loadSessionManifest().some((e) => e.sessionId === s.id), "graceful shutdown keeps the session in the manifest (so it is reopened)");
 
 console.log(fail === 0 ? "=== HISTORY-SHUTDOWN PASS ===" : "=== HISTORY-SHUTDOWN FAIL ===");
 process.exit(fail === 0 ? 0 : 1);
