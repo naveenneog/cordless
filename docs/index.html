@@ -83,7 +83,7 @@
         <h2>New in v0.9</h2>
         <div class="grid">
           <div class="card"><h3>📖 Built-in help</h3><p>cordless documents itself. <code>cordless help</code> is a grouped command overview; <code>cordless help &lt;command&gt;</code> (or <code>cordless &lt;command&gt; --help</code>) shows usage, options, and examples for any command.</p></div>
-          <div class="card"><h3>⚡ Reliable <code>start</code></h3><p><code>cordless start</code> now returns instantly in every environment — including under a Chocolatey shim or CI wrapper — by launching the daemon outside the caller's job object on Windows.</p></div>
+          <div class="card"><h3>⚡ Reliable <code>start</code></h3><p><code>cordless start</code> launches the daemon fully detached and returns cleanly in every environment — a plain terminal, a Chocolatey shim, or CI — with its logs in <code>~/.cordless/daemon.log</code>.</p></div>
         </div>
       </section>
 

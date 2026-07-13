@@ -4,7 +4,7 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { HOME, ensureHome } from "./state.js";
 import { IS_SEA } from "./runtime.js";
 
@@ -57,70 +57,19 @@ export function writePid() {
 // or the pid of the already-running daemon. In a SEA build the entry is the exe itself
 // (`cordless start --foreground`); in dev it is `node index.js start --foreground`.
 //
-// On Windows we launch via WMI (Win32_Process.Create) so the daemon is parented to WmiPrvSE and is
-// therefore NOT a member of the caller's job object. Chocolatey's shim (shimgen) — and CI /
-// package-manager wrappers — wait on their job object, so a normal detached child would keep
-// `cordless start` blocked until the daemon exits. Breaking away from the job lets the launcher
-// return immediately while the daemon keeps running. (Confirmed with Sol.)
+// The child is `detached` with its stdio redirected to the log file (not the parent's pipes), so it
+// keeps running after this CLI exits and does not hold the caller's stdout open. This returns cleanly
+// even when launched through a Chocolatey shim — the perceived "hang" on a first run is just Windows
+// scanning the ~100 MB self-contained exe before Node starts, not the launcher waiting on the daemon.
 export function startDaemonDetached() {
   const existing = runningPid();
   if (existing) return existing;
   ensureHome();
-  if (process.platform === "win32") {
-    try {
-      const pid = startDaemonWindowsBreakaway();
-      if (pid) return pid;
-    } catch {
-      /* fall back to plain spawn below */
-    }
-  }
   const [bin, argv] = daemonCmd();
   const outFd = fs.openSync(LOG, "a");
   const child = spawn(bin, argv, { detached: true, stdio: ["ignore", outFd, outFd], windowsHide: true });
   child.unref();
   return child.pid;
-}
-
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-function quoteWin(s) {
-  return `"${String(s).replace(/"/g, '\\"')}"`;
-}
-
-// Build the WMI Win32_Process.Create command line that launches the foreground daemon and appends
-// its stdout/stderr to the log. Wrapped in `cmd /d /s /c "<...>"` so the redirect works and the inner
-// command is kept verbatim (cmd strips only the outermost quotes). Pure/exported for testing.
-export function windowsDaemonCommandLine(bin, argv, logPath) {
-  const inner = [bin, ...argv].map(quoteWin).join(" ");
-  return `cmd.exe /d /s /c "${inner} >> ${quoteWin(logPath)} 2>&1"`;
-}
-
-// Launch the daemon on Windows outside the caller's job object via WMI. Returns the daemon's real
-// pid (read from the pidfile once it starts) or null if the launch failed / didn't come up.
-function startDaemonWindowsBreakaway() {
-  const [bin, argv] = daemonCmd();
-  const commandLine = windowsDaemonCommandLine(bin, argv, LOG);
-  // Pass the command line + working dir via env to avoid nested-quote hell inside -Command.
-  const ps =
-    "$ErrorActionPreference='Stop';" +
-    "$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $env:CORDLESS_DCMD; CurrentDirectory = $env:CORDLESS_DCWD };" +
-    "if ($null -eq $r -or $r.ReturnValue -ne 0) { exit 1 };" +
-    "[Console]::Out.Write($r.ProcessId)";
-  const res = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], {
-    encoding: "utf8",
-    windowsHide: true,
-    env: { ...process.env, CORDLESS_DCMD: commandLine, CORDLESS_DCWD: os.homedir() },
-  });
-  if (res.status !== 0) return null;
-  // Win32_Process.Create returns cmd.exe's pid; wait for the daemon to write its own pidfile.
-  for (let i = 0; i < 60; i++) {
-    const pid = runningPid();
-    if (pid) return pid;
-    sleepSync(100);
-  }
-  return runningPid();
 }
 
 // ---- commands ----
