@@ -6,7 +6,8 @@ import path from "node:path";
 import http from "node:http";
 import { WebSocket } from "ws";
 import { HOME, loadConfig } from "../state.js";
-import { startDaemonDetached } from "../service.js";
+import { startDaemonDetached, runningPid } from "../service.js";
+import { VERSION } from "../version.js";
 
 const CRED_FILE = path.join(HOME, "desktop-credential.json");
 
@@ -49,19 +50,42 @@ export function health(base = daemonBaseUrl(), timeoutMs = 1500) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Ensure a daemon is reachable; start it detached if needed. Returns { health, started }.
+// Ensure a daemon of THIS version is reachable; start it if needed. If a stale/older daemon is
+// already running on the port (version skew — e.g. an autostart from a previous install), replace it,
+// otherwise a newer client would send messages the older daemon rejects ("invalid message").
+// Returns { health, started, replaced?, stale? }.
 export async function ensureDaemon({ startIfDown = true, waitMs = 10000 } = {}) {
   let h = await health();
-  if (h) return { health: h, started: false };
-  if (!startIfDown) return { health: null, started: false };
+  let replaced = false;
+  if (h && h.version !== VERSION) {
+    const pid = runningPid();
+    if (pid) {
+      try {
+        process.kill(pid);
+      } catch {
+        /* ignore */
+      }
+      const until = Date.now() + 5000;
+      while (Date.now() < until && (await health())) await sleep(200);
+      replaced = true;
+    }
+    h = await health();
+    if (h && h.version !== VERSION) {
+      // Could not replace it (not ours / no pid file). Surface it rather than misbehave.
+      return { health: h, started: false, stale: true };
+    }
+    if (!h) h = null; // fall through to (re)start below
+  }
+  if (h) return { health: h, started: false, replaced };
+  if (!startIfDown) return { health: null, started: false, replaced };
   startDaemonDetached();
   const end = Date.now() + waitMs;
   while (Date.now() < end) {
     await sleep(250);
     h = await health();
-    if (h) return { health: h, started: true };
+    if (h) return { health: h, started: true, replaced };
   }
-  return { health: null, started: true };
+  return { health: null, started: true, replaced };
 }
 
 // Thin RPC/stream client. connect() resolves after a successful hello.

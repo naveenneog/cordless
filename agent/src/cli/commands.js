@@ -11,7 +11,11 @@ import { attentionRank, needsAttention } from "./render.js";
 import { Notifier } from "../notifier.js";
 
 async function withClient(fn) {
-  const { health: h } = await ensureDaemon();
+  const { health: h, stale } = await ensureDaemon();
+  if (stale) {
+    console.error("cordless: an older daemon is running on this port. Run 'cordless stop' (or reboot), then retry.");
+    process.exit(1);
+  }
   if (!h) {
     console.error("cordless: could not reach or start the daemon (see ~/.cordless/daemon.log).");
     process.exit(1);

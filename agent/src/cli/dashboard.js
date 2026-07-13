@@ -20,7 +20,14 @@ function deriveReach(pairing) {
 }
 
 export async function runDashboard({ once = false } = {}) {
-  const { health } = await ensureDaemon();
+  const { health, stale } = await ensureDaemon();
+  if (stale) {
+    console.error(
+      "cordless: an older cordless daemon is already running on this port and couldn't be replaced.\n" +
+        "  Run 'cordless stop' (or reboot), then reopen cordless."
+    );
+    process.exit(1);
+  }
   if (!health) {
     console.error("cordless: could not reach or start the daemon (see ~/.cordless/daemon.log).");
     process.exit(1);
