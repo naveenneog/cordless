@@ -38,13 +38,15 @@ Verified: the checksum matches, **only `cordless.exe` is shimmed** (the bundled 
 `OpenConsole.exe`, `winpty-agent.exe` — get `.ignore` files so they don't leak onto `PATH`), and the
 shimmed binary finds its `resources/` (node-pty) and spawns PTYs correctly.
 
-### Known caveat (Windows shim + a detached daemon)
+### `cordless start` works cleanly under the shim
 
-Chocolatey's shim waits on the process it launches, so **`cordless start`** (which detaches the daemon)
-appears to *hang* under the shim — the daemon still starts and survives, but the shim doesn't return.
-The postinstall message therefore recommends `cordless` (interactive dashboard) and `cordless install`
-(login autostart via Task Scheduler, which runs the daemon independently of any shim), **not**
-`cordless start`. For a persistent daemon on a Chocolatey install, use `cordless install`.
+Chocolatey's shim (shimgen) waits on its **job object**, so a normally-detached child (the daemon)
+would keep `cordless start` blocked until the daemon exits. cordless avoids this on Windows by
+launching the daemon via **WMI `Win32_Process.Create`**, so the daemon is parented to `WmiPrvSE` and is
+**not** a member of the shim's job — `cordless start` returns immediately (~2–3s) while the daemon keeps
+running. This was verified through a real shimgen shim: `start` returned in ~2.9s and the daemon stayed
+up and served PTY sessions. `cordless`, `cordless start`, and `cordless install` are all safe under the
+shim.
 
 ## Push to the Chocolatey community repository (needs an account)
 
