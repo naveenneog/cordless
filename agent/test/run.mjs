@@ -130,7 +130,7 @@ async function main() {
     const d = startDaemon(home);
     if (!(await waitHealthy())) { record("phaseA:daemon-start", false, "health never came up"); await stopDaemon(d); }
     else {
-      for (const f of ["e2e.mjs", "security.mjs", "desktop.mjs", "desktop_scope.mjs", "pairing.mjs", "cli_client.mjs", "attention_live.mjs", "attention_prompt.mjs", "output.mjs"]) {
+      for (const f of ["e2e.mjs", "security.mjs", "desktop.mjs", "desktop_scope.mjs", "pairing.mjs", "cli_client.mjs", "attention_live.mjs", "attention_prompt.mjs", "output.mjs", "rename.mjs"]) {
         const { code } = await runTest(f, home);
         record(f, code === 0);
       }

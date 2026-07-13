@@ -29,6 +29,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless output <id> [--lines N] [--copy]   print/copy a session's last output
   cordless search <id> <query>   search a session's retained scrollback
   cordless kill <id>             stop a session
+  cordless rename <id> <title>   retitle a session's tab (empty = reset to default)
   cordless profiles [show <name>]   list launch profiles (built-in + your custom ones)
   cordless workspace <save|open|list|delete> [name]   named session templates
   cordless history [status|clear] [id] [--all]   persisted scrollback (survives restart)
@@ -132,6 +133,12 @@ async function main() {
     case "kill": {
       const { runKill } = await import("./cli/commands.js");
       await runKill(args[0]);
+      break;
+    }
+    case "rename": {
+      const { runRename } = await import("./cli/commands.js");
+      const positionals = args.filter((a) => !a.startsWith("-"));
+      await runRename(positionals[0], positionals.slice(1).join(" "));
       break;
     }
     case "workspace":

@@ -62,6 +62,14 @@ const SessionKill = z.object({
   mode: z.enum(["graceful", "force"]).optional(),
 });
 
+// Rename a session's tab title. Empty string restores the generated default. Any authed client.
+const SessionRename = z.object({
+  type: z.literal("session.rename"),
+  requestId,
+  sessionId,
+  title: z.string().max(1000),
+});
+
 const SessionAck = z.object({
   type: z.literal("session.ack"),
   sessionId,
@@ -127,6 +135,7 @@ export const ClientMessage = z.discriminatedUnion("type", [
   SessionResize,
   SessionDetach,
   SessionKill,
+  SessionRename,
   SessionAck,
   PairingCreate,
   PairingCancel,
@@ -186,6 +195,22 @@ export const out = {
     attentionSince,
     attentionConfidence,
     attentionRevision,
+  }),
+  // Session metadata changed (e.g. a rename), broadcast to all clients. `revision` is monotonic per
+  // session — clients ignore an update older than the one they've already applied.
+  sessionUpdated: (sessionId, revision, changes) => ({
+    type: "session.updated",
+    sessionId,
+    revision,
+    changes,
+  }),
+  sessionRenameResult: (requestId, sessionId, title, revision) => ({
+    type: "session.rename.result",
+    requestId,
+    ok: true,
+    sessionId,
+    title,
+    revision,
   }),
   sessionTail: (requestId, sessionId, text) => ({ type: "session.tail.result", requestId, ok: true, sessionId, text }),
   sessionSearch: (requestId, sessionId, matches) => ({ type: "session.search.result", requestId, ok: true, sessionId, matches }),

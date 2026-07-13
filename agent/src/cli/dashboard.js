@@ -249,6 +249,36 @@ export async function runDashboard({ once = false } = {}) {
       return;
     }
 
+    // inline rename editor after 'e'
+    if (pending === "rename") {
+      if (s === "\r" || s === "\n") {
+        pending = null;
+        const sess = state.sessions[state.selected];
+        if (sess) {
+          try {
+            const res = await client.renameSession(sess.sessionId, state.renameBuf || "");
+            state.message = `renamed to "${res.title}"`;
+          } catch (e) {
+            state.message = "rename failed: " + e.message;
+          }
+          await refreshSessions();
+        }
+        state.renameBuf = "";
+      } else if (s === "\x1b") {
+        pending = null;
+        state.renameBuf = "";
+        state.message = "rename cancelled";
+      } else if (s === "\x7f" || s === "\b") {
+        state.renameBuf = (state.renameBuf || "").slice(0, -1);
+        state.message = `rename: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel \u00b7 empty resets)`;
+      } else if (s >= " " && !s.startsWith("\x1b")) {
+        state.renameBuf = (state.renameBuf || "") + s;
+        state.message = `rename: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel \u00b7 empty resets)`;
+      }
+      render();
+      return;
+    }
+
     // profile picker after 'n'
     if (pending === "new") {
       pending = null;
@@ -365,6 +395,13 @@ export async function runDashboard({ once = false } = {}) {
         if (state.sessions[state.selected]) {
           pending = "kill";
           state.message = `kill ${state.sessions[state.selected].profile || "session"}? press y to confirm`;
+        }
+        break;
+      case "e":
+        if (state.sessions[state.selected]) {
+          pending = "rename";
+          state.renameBuf = state.sessions[state.selected].title || "";
+          state.message = `rename: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel \u00b7 empty resets)`;
         }
         break;
       case "d":
