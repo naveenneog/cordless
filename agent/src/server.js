@@ -595,6 +595,49 @@ export async function runServer() {
         safeSend(ws, out.profilesList(m.requestId, profiles));
         break;
       }
+
+      case "group.list":
+        safeSend(ws, out.groupsList(m.requestId, mgr.listGroups()));
+        break;
+      case "group.create":
+        safeSend(ws, out.groupResult(m.requestId, mgr.createGroup({ name: m.name, color: m.color })));
+        break;
+      case "group.rename":
+        try {
+          safeSend(ws, out.groupResult(m.requestId, mgr.renameGroup(m.groupId, m.name)));
+        } catch (err) {
+          safeSend(ws, out.error("group.result", m.requestId, "no_group", String(err.message || err)));
+        }
+        break;
+      case "group.color":
+        try {
+          safeSend(ws, out.groupResult(m.requestId, mgr.setGroupColor(m.groupId, m.color)));
+        } catch (err) {
+          safeSend(ws, out.error("group.result", m.requestId, "bad_request", String(err.message || err)));
+        }
+        break;
+      case "group.reorder":
+        try {
+          safeSend(ws, out.groupResult(m.requestId, mgr.reorderGroup(m.groupId, m.order)));
+        } catch (err) {
+          safeSend(ws, out.error("group.result", m.requestId, "no_group", String(err.message || err)));
+        }
+        break;
+      case "group.delete":
+        try {
+          mgr.deleteGroup(m.groupId);
+          safeSend(ws, out.result("group.delete.result", m.requestId, { groupId: m.groupId }));
+        } catch (err) {
+          safeSend(ws, out.error("group.delete.result", m.requestId, "no_group", String(err.message || err)));
+        }
+        break;
+      case "group.assign":
+        try {
+          safeSend(ws, out.groupAssignResult(m.requestId, mgr.assignSession(m.sessionId, m.groupId, m.groupOrder)));
+        } catch (err) {
+          safeSend(ws, out.error("group.assign.result", m.requestId, "bad_request", String(err.message || err)));
+        }
+        break;
     }
   }
 

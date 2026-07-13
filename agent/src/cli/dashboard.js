@@ -1,7 +1,7 @@
 // The `cordless` dashboard: a full-screen TUI that is a thin client of the persistent daemon.
 // Leaving the dashboard (q / Ctrl-C) never stops the daemon, PTYs, or phone connections.
 import { DaemonClient, ensureDaemon, daemonBaseUrl } from "./client.js";
-import { buildFrame, dim, bold, cyan, inverse, red, green, truncate, attentionRank } from "./render.js";
+import { buildFrame, dim, bold, cyan, inverse, red, green, truncate, visibleSessions } from "./render.js";
 import { attachSession } from "./attach.js";
 import { loadDevices, revokeDevice } from "../state.js";
 import { VERSION } from "../version.js";
@@ -49,7 +49,11 @@ export async function runDashboard({ once = false } = {}) {
     reachUrl: null,
     pairing: null,
     pairingError: null,
-    sessions: [],
+    sessions: [], // the visible, selectable list (derived from allSessions via the current view)
+    allSessions: [], // everything the daemon reports
+    groups: [], // tab groups
+    filter: "all", // smart-view filter: all | attention | claude | codex | copilot | shell
+    collapsed: new Set(), // client-local set of collapsed groupIds
     selected: 0,
     message: null,
     now: Date.now(),
@@ -58,7 +62,7 @@ export async function runDashboard({ once = false } = {}) {
 
   // Live attention/activity updates: merge into the matching session and repaint (interactive only).
   client.on("session.activity", (m) => {
-    const s = state.sessions.find((x) => x.sessionId === m.sessionId);
+    const s = (state.allSessions || []).find((x) => x.sessionId === m.sessionId);
     if (!s) return;
     s.activity = m.activity;
     s.attention = m.attention;
@@ -71,25 +75,46 @@ export async function runDashboard({ once = false } = {}) {
     }
   });
 
+  // A rename or group assignment on another client — merge and repaint.
+  client.on("session.updated", (m) => {
+    const s = (state.allSessions || []).find((x) => x.sessionId === m.sessionId);
+    if (s && m.changes) Object.assign(s, m.changes);
+    if (state.interactive) {
+      applySort();
+      render();
+    }
+  });
+
+  // Group definitions changed on another client.
+  client.on("groups.updated", (m) => {
+    state.groups = m.groups || [];
+    if (state.interactive) {
+      applySort();
+      render();
+    }
+  });
+
   async function refreshSessions() {
     try {
-      state.sessions = await client.listSessions();
+      const [sessions, groups] = await Promise.all([client.listSessions(), client.listGroups().catch(() => [])]);
+      state.allSessions = sessions;
+      state.groups = groups || [];
     } catch {
-      state.sessions = [];
+      state.allSessions = [];
     }
     applySort();
-    if (state.selected >= state.sessions.length) state.selected = Math.max(0, state.sessions.length - 1);
   }
 
-  // Sort attention-first (waiting > bell > finished > working > idle > exited), keeping the
-  // currently-selected session selected across the reorder.
+  // Recompute the visible, selectable list from allSessions + the current groups/filter/collapsed
+  // state (attention-first within groups), keeping the currently-selected session selected.
   function applySort() {
     const selId = state.sessions[state.selected] && state.sessions[state.selected].sessionId;
-    state.sessions.sort((a, b) => attentionRank(a) - attentionRank(b));
+    state.sessions = visibleSessions(state);
     if (selId) {
       const i = state.sessions.findIndex((s) => s.sessionId === selId);
       if (i >= 0) state.selected = i;
     }
+    if (state.selected >= state.sessions.length) state.selected = Math.max(0, state.sessions.length - 1);
   }
   async function newPairing() {
     try {
@@ -279,6 +304,135 @@ export async function runDashboard({ once = false } = {}) {
       return;
     }
 
+    // group-name editor (after g -> r, or when naming a new group)
+    if (pending === "group-name") {
+      if (s === "\r" || s === "\n") {
+        const name = (state.renameBuf || "").trim();
+        pending = null;
+        state.renameBuf = "";
+        try {
+          if (state.groupNameTarget) {
+            await client.renameGroup(state.groupNameTarget, name || "Group");
+            state.message = "group renamed";
+          } else {
+            const g = await client.createGroup(name || "Group", "blue");
+            const sess = state.sessions[state.selected];
+            if (sess) await client.assignSession(sess.sessionId, g.id);
+            state.message = `created group "${g.name}"`;
+          }
+          await refreshSessions();
+        } catch (e) {
+          state.message = "group failed: " + e.message;
+        }
+        state.groupNameTarget = null;
+      } else if (s === "\x1b") {
+        pending = null;
+        state.renameBuf = "";
+        state.groupNameTarget = null;
+        state.message = "cancelled";
+      } else if (s === "\x7f" || s === "\b") {
+        state.renameBuf = (state.renameBuf || "").slice(0, -1);
+        state.message = `group name: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel)`;
+      } else if (s >= " " && !s.startsWith("\x1b")) {
+        state.renameBuf = (state.renameBuf || "") + s;
+        state.message = `group name: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel)`;
+      }
+      render();
+      return;
+    }
+
+    // group menu after 'g'
+    if (pending === "group") {
+      pending = null;
+      const sess = state.sessions[state.selected];
+      try {
+        if (s === "n") {
+          state.groupNameTarget = null;
+          state.renameBuf = "";
+          pending = "group-name";
+          state.message = "new group name: \u2588  (enter save \u00b7 esc cancel)";
+        } else if (s === "a") {
+          if (!state.groups.length) {
+            state.message = "no groups yet \u2014 press g then n to create one";
+          } else {
+            pending = "group-assign";
+            const menu = state.groups.slice(0, 9).map((g, i) => `${i + 1}=${g.name}`).join(" \u00b7 ");
+            state.message = "assign to: " + menu + " \u00b7 0=ungroup \u00b7 (esc)";
+          }
+        } else if (s === "u") {
+          if (sess) {
+            await client.assignSession(sess.sessionId, null);
+            await refreshSessions();
+            state.message = "ungrouped";
+          }
+        } else if (s === "c") {
+          if (sess && sess.groupId) {
+            if (state.collapsed.has(sess.groupId)) state.collapsed.delete(sess.groupId);
+            else state.collapsed.add(sess.groupId);
+            applySort();
+          } else {
+            state.message = "select a grouped session to collapse its group";
+          }
+        } else if (s === "r") {
+          if (sess && sess.groupId) {
+            const g = state.groups.find((x) => x.id === sess.groupId);
+            state.groupNameTarget = sess.groupId;
+            state.renameBuf = (g && g.name) || "";
+            pending = "group-name";
+            state.message = `group name: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel)`;
+          } else {
+            state.message = "select a grouped session to rename its group";
+          }
+        } else if (s === "d") {
+          if (sess && sess.groupId) {
+            await client.deleteGroup(sess.groupId);
+            await refreshSessions();
+            state.message = "group deleted (sessions ungrouped)";
+          } else {
+            state.message = "select a grouped session to delete its group";
+          }
+        } else {
+          state.message = null;
+        }
+      } catch (e) {
+        state.message = "group failed: " + e.message;
+      }
+      render();
+      return;
+    }
+
+    // group assignment picker after 'g' -> 'a'
+    if (pending === "group-assign") {
+      pending = null;
+      const sess = state.sessions[state.selected];
+      if (s === "0") {
+        if (sess) {
+          try {
+            await client.assignSession(sess.sessionId, null);
+            await refreshSessions();
+            state.message = "ungrouped";
+          } catch (e) {
+            state.message = "assign failed: " + e.message;
+          }
+        }
+      } else if (/^[1-9]$/.test(s)) {
+        const g = state.groups[parseInt(s, 10) - 1];
+        if (g && sess) {
+          try {
+            await client.assignSession(sess.sessionId, g.id);
+            await refreshSessions();
+            state.message = `assigned to "${g.name}"`;
+          } catch (e) {
+            state.message = "assign failed: " + e.message;
+          }
+        }
+      } else {
+        state.message = null;
+      }
+      render();
+      return;
+    }
+
     // profile picker after 'n'
     if (pending === "new") {
       pending = null;
@@ -404,6 +558,19 @@ export async function runDashboard({ once = false } = {}) {
           state.message = `rename: ${state.renameBuf}\u2588  (enter save \u00b7 esc cancel \u00b7 empty resets)`;
         }
         break;
+      case "g":
+        pending = "group";
+        state.message = "group: n=new \u00b7 a=assign \u00b7 u=ungroup \u00b7 c=collapse \u00b7 r=rename \u00b7 d=delete \u00b7 (esc)";
+        break;
+      case "f": {
+        const order = ["all", "attention", "claude", "codex", "copilot", "shell"];
+        const idx = order.indexOf(state.filter || "all");
+        state.filter = order[(idx + 1) % order.length];
+        state.selected = 0;
+        applySort();
+        state.message = `view: ${state.filter}`;
+        break;
+      }
       case "d":
         devices = loadDevices();
         devSel = 0;

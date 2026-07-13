@@ -72,6 +72,58 @@ export function needsAttention(s) {
   return s.attention === "prompt" || s.attention === "bell" || s.attention === "finished";
 }
 
+// Group header glyph color by the group's assigned color.
+const GROUP_COLOR_FN = { blue: cyan, green, yellow, red, purple: violet, gray: dim };
+
+const FILTERS = ["all", "attention", "claude", "codex", "copilot", "shell"];
+
+function applyFilter(sessions, filter) {
+  if (!filter || filter === "all") return sessions;
+  if (filter === "attention") return sessions.filter(needsAttention);
+  return sessions.filter((s) => (s.profile || "shell") === filter);
+}
+
+// Order rows for rendering when tab groups exist: each group (by order) as a header + its members
+// (attention-first, then groupOrder), then an "Ungrouped" section. Session rows carry a running
+// selIndex so selection lines up with visibleSessions(). With no groups, a flat list of sessions.
+export function groupedRows(state) {
+  const all = applyFilter(state.allSessions || state.sessions || [], state.filter);
+  const groups = (state.groups || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  const collapsed = state.collapsed instanceof Set ? state.collapsed : new Set(state.collapsed || []);
+  const rows = [];
+  let selIndex = 0;
+  const memberSort = (a, b) => attentionRank(a) - attentionRank(b) || (a.groupOrder || 0) - (b.groupOrder || 0) || String(a.title || "").localeCompare(String(b.title || ""));
+  if (!groups.length) {
+    for (const s of all.slice().sort(memberSort)) rows.push({ type: "session", session: s, selIndex: selIndex++ });
+    return rows;
+  }
+  const byGroup = new Map(groups.map((g) => [g.id, []]));
+  const ungrouped = [];
+  for (const s of all) {
+    if (s.groupId && byGroup.has(s.groupId)) byGroup.get(s.groupId).push(s);
+    else ungrouped.push(s);
+  }
+  const emit = (name, color, members, gid) => {
+    const attn = members.filter(needsAttention).length;
+    const isCollapsed = !!(gid && collapsed.has(gid));
+    rows.push({ type: "header", name, color, count: members.length, attn, collapsed: isCollapsed, groupId: gid });
+    if (!isCollapsed) for (const s of members.slice().sort(memberSort)) rows.push({ type: "session", session: s, selIndex: selIndex++ });
+  };
+  for (const g of groups) emit(g.name, g.color, byGroup.get(g.id), g.id);
+  if (ungrouped.length) emit("Ungrouped", "gray", ungrouped, null);
+  return rows;
+}
+
+// The visible, selectable sessions (collapsed groups excluded) in display order. state.selected
+// indexes into this list; the dashboard and buildFrame agree on the ordering via this one function.
+export function visibleSessions(state) {
+  return groupedRows(state).filter((r) => r.type === "session").map((r) => r.session);
+}
+
+function filterBar(filter) {
+  return dim("view: ") + FILTERS.map((o) => (o === (filter || "all") ? inverse(" " + o + " ") : dim(o))).join(dim(" \u00b7 "));
+}
+
 // Build the visible dashboard as an array of plain-width lines (color codes added but not counted
 // toward width). The caller clears the screen and prints these.
 export function buildFrame(state, cols = 80, rows = 24) {
@@ -116,25 +168,37 @@ export function buildFrame(state, cols = 80, rows = 24) {
   }
   push();
 
-  // Sessions (attention-first)
-  const sessions = state.sessions || [];
-  const attnCount = sessions.filter(needsAttention).length;
-  push(dim("\u2500\u2500 ") + bold(`Sessions (${sessions.length})`) + dim(" \u2500\u2500") + (attnCount ? "  " + yellow(`${attnCount} need attention`) : ""));
-  if (!sessions.length) {
-    push("  " + dim("no sessions yet \u2014 press n to start a shell, Claude, or Codex"));
+  // Sessions (grouped, attention-first)
+  const allS = state.allSessions || state.sessions || [];
+  const attnCount = allS.filter(needsAttention).length;
+  const hasGroups = !!(state.groups && state.groups.length);
+  push(dim("\u2500\u2500 ") + bold(`Sessions (${allS.length})`) + dim(" \u2500\u2500") + (attnCount ? "  " + yellow(`${attnCount} need attention`) : ""));
+  if (!allS.length) {
+    push("  " + dim("no sessions yet \u2014 press n to start a shell, Claude, Codex, or Copilot"));
   } else {
-    sessions.forEach((s, i) => {
-      const sel = i === state.selected;
-      const glyph = attentionGlyph(s);
-      const label = `${(s.profile || "shell").padEnd(7)} ${truncate(s.title || s.cwd || "", 26).padEnd(26)} ${attentionWord(s)}`;
-      push((sel ? cyan("\u25b8 ") : "  ") + glyph + " " + (sel ? inverse(truncate(label, inner - 4)) : truncate(label, inner - 4)));
-      if (sel && s.lastLine) push("      " + dim(truncate(s.lastLine, inner - 6)));
-    });
+    if (hasGroups || (state.filter && state.filter !== "all")) push("  " + filterBar(state.filter));
+    const rows = groupedRows(state);
+    const indent = hasGroups ? "    " : "  ";
+    for (const r of rows) {
+      if (r.type === "header") {
+        const arrow = r.collapsed ? "\u25b6" : "\u25bc"; // ▶ / ▼
+        const cfn = GROUP_COLOR_FN[r.color] || dim;
+        const meta = (r.attn ? yellow(`${r.attn} waiting`) + dim(" \u00b7 ") : "") + dim(`${r.count} session${r.count === 1 ? "" : "s"}`);
+        push("  " + cfn(`${arrow} ${r.name}`) + "  " + meta);
+      } else {
+        const s = r.session;
+        const sel = r.selIndex === state.selected;
+        const glyph = attentionGlyph(s);
+        const label = `${(s.profile || "shell").padEnd(7)} ${truncate(s.title || s.cwd || "", 26).padEnd(26)} ${attentionWord(s)}`;
+        push(indent + (sel ? cyan("\u25b8 ") : "  ") + glyph + " " + (sel ? inverse(truncate(label, inner - 6)) : truncate(label, inner - 6)));
+        if (sel && s.lastLine) push(indent + "      " + dim(truncate(s.lastLine, inner - 8)));
+      }
+    }
   }
   push();
 
   // Footer
-  push(dim("\u2191/\u2193 select \u00b7 enter attach \u00b7 n new \u00b7 e rename \u00b7 c clear \u00b7 p QR \u00b7 d devices \u00b7 x kill \u00b7 q quit"));
+  push(dim("\u2191/\u2193 select \u00b7 enter attach \u00b7 n new \u00b7 e rename \u00b7 g group \u00b7 f view \u00b7 p QR \u00b7 x kill \u00b7 q quit"));
   if (state.message) push(yellow(truncate(state.message, inner)));
 
   return lines;

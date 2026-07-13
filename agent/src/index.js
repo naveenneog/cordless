@@ -31,6 +31,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless kill <id>             stop a session
   cordless rename <id> <title>   retitle a session's tab (empty = reset to default)
   cordless profiles [show <name>]   list launch profiles (built-in + your custom ones)
+  cordless group <list|new|rename|delete|assign> [args]   session tab groups
   cordless workspace <save|open|list|delete> [name]   named session templates
   cordless history [status|clear] [id] [--all]   persisted scrollback (survives restart)
 
@@ -157,6 +158,13 @@ async function main() {
       const { runProfiles } = await import("./cli/commands.js");
       const positionals = args.filter((a) => !a.startsWith("-"));
       await runProfiles(positionals[0], positionals[1]);
+      break;
+    }
+    case "group":
+    case "groups": {
+      const { runGroup } = await import("./cli/commands.js");
+      const positionals = args.filter((a) => !a.startsWith("-"));
+      await runGroup(positionals[0], positionals[1], positionals.slice(2).join(" ") || positionals[2]);
       break;
     }
     case "install":

@@ -137,6 +137,67 @@ export async function runSearch(prefix, query, opts = {}) {
   });
 }
 
+// `cordless group <list|new|rename|delete|assign>` — manage session (tab) groups.
+export async function runGroup(sub, a, b) {
+  const resolveGroup = (groups, prefix) => {
+    const m = groups.filter((g) => g.id === prefix || g.id.startsWith(prefix) || g.name.toLowerCase() === String(prefix).toLowerCase());
+    if (m.length === 1) return m[0];
+    if (m.length > 1) throw new Error(`ambiguous group "${prefix}"`);
+    throw new Error(`no group matches "${prefix}"`);
+  };
+  await withClient(async (c) => {
+    const action = sub || "list";
+    if (action === "list") {
+      const groups = await c.listGroups();
+      const sessions = await c.listSessions();
+      if (!groups.length) {
+        console.log("no groups yet. Create one with: cordless group new <name> [color]");
+        return;
+      }
+      console.log("");
+      for (const g of groups) {
+        const members = sessions.filter((s) => s.groupId === g.id);
+        console.log(`  ${g.id.slice(0, 8)}  ${String(g.name).padEnd(20)} ${String(g.color).padEnd(7)} ${members.length} session(s)`);
+      }
+      console.log("");
+      return;
+    }
+    if (action === "new" || action === "create") {
+      const g = await c.createGroup(a || "Group", b);
+      console.log(`created group "${g.name}" (${g.id.slice(0, 8)}, ${g.color}).`);
+      return;
+    }
+    if (action === "rename") {
+      const g = resolveGroup(await c.listGroups(), a);
+      const r = await c.renameGroup(g.id, b || "");
+      console.log(`renamed group -> "${r.name}".`);
+      return;
+    }
+    if (action === "color") {
+      const g = resolveGroup(await c.listGroups(), a);
+      const r = await c.setGroupColor(g.id, b);
+      console.log(`group "${r.name}" color -> ${r.color}.`);
+      return;
+    }
+    if (action === "delete" || action === "rm") {
+      const g = resolveGroup(await c.listGroups(), a);
+      await c.deleteGroup(g.id);
+      console.log(`deleted group "${g.name}" (its sessions are now ungrouped).`);
+      return;
+    }
+    if (action === "assign") {
+      const id = await resolveId(c, a);
+      let gid = null;
+      if (b && !["none", "null", "-"].includes(String(b).toLowerCase())) gid = resolveGroup(await c.listGroups(), b).id;
+      await c.assignSession(id, gid);
+      console.log(gid ? `assigned ${id.slice(0, 8)} to the group.` : `ungrouped ${id.slice(0, 8)}.`);
+      return;
+    }
+    console.error("usage: cordless group <list|new|rename|color|delete|assign> [args]");
+    process.exit(1);
+  });
+}
+
 // `cordless profiles [show <name>]` — list the effective launchers (built-ins + your custom ones).
 export async function runProfiles(sub, name) {
   await withClient(async (c) => {
