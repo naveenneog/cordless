@@ -34,6 +34,33 @@ function cordlessHome() {
   return process.env.CORDLESS_HOME || path.join(os.homedir(), ".cordless");
 }
 
+// Standard locations where `cordless setup` installs the binary — checked in addition to PATH, so the
+// desktop app finds a freshly-installed CLI even when its own process PATH is stale (common on Windows,
+// where PATH edits only apply to new sessions).
+function installedCliCandidates() {
+  const home = os.homedir();
+  if (process.platform === "win32") {
+    const base = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+    return [path.join(base, "Programs", "cordless", "cordless.exe")];
+  }
+  return [
+    path.join(home, ".local", "bin", "cordless"),
+    path.join(home, ".local", "share", "cordless", "cordless"),
+  ];
+}
+
+// The first install-dir candidate that exists as a file, or null.
+function findInstalledCli(candidates = installedCliCandidates()) {
+  for (const c of candidates) {
+    try {
+      if (fs.statSync(c).isFile()) return c;
+    } catch {
+      /* not there */
+    }
+  }
+  return null;
+}
+
 // Port precedence: credential.server -> config.port -> default.
 function resolveOrigin(home = cordlessHome(), defaultPort = DEFAULT_PORT) {
   const cred = readJSON(path.join(home, "desktop-credential.json"));
@@ -67,4 +94,4 @@ function sanitizeCredential(cred, fallbackOrigin, defaultPort = DEFAULT_PORT) {
   return { deviceId, token, server: safeServer };
 }
 
-module.exports = { DEFAULT_PORT, readJSON, validateLocalServer, cordlessHome, resolveOrigin, sanitizeCredential };
+module.exports = { DEFAULT_PORT, readJSON, validateLocalServer, cordlessHome, installedCliCandidates, findInstalledCli, resolveOrigin, sanitizeCredential };

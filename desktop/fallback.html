@@ -93,6 +93,14 @@
           <button class="ghost" id="retry">Retry</button>
         </div>
         <div class="status" id="status"></div>
+        <div id="cli" style="display:none; margin-top:18px; padding-top:16px; border-top:1px solid var(--line)">
+          <p>cordless is <strong>CLI-first</strong>: the CLI is the daemon. Install it once and this app connects automatically.</p>
+          <code>cordless setup</code>
+          <div class="row">
+            <button class="primary" id="get">Get the cordless CLI</button>
+          </div>
+          <p style="font-size:12px">Download the CLI, unzip, then run <code style="margin-top:4px;padding:2px 6px">cordless setup</code> — it installs to PATH, autostarts, and starts the daemon. Reopen this app after.</p>
+        </div>
       </div>
     </div>
     <script>
@@ -118,6 +126,7 @@
         const r = await bridge.startDaemon();
         if (!r || !r.ok) {
           $("start").disabled = false;
+          if (r && r.needsCli) $("cli").style.display = "block";
           return set((r && r.error) || "Could not start. Run `cordless start` yourself.", "err");
         }
         set("Started — reconnecting…", "ok");
@@ -130,6 +139,7 @@
 
       $("retry").addEventListener("click", retry);
       $("start").addEventListener("click", start);
+      $("get").addEventListener("click", () => bridge?.openReleases && bridge.openReleases());
     </script>
   </body>
 </html>

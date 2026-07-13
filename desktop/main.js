@@ -12,11 +12,11 @@
 //  - No fs/shell/openExternal/process exposed. startDaemon takes NOTHING from the renderer.
 //  - Navigation is pinned to the trusted loopback origin (or the packaged fallback page).
 //  - All new windows, webviews and permission requests are denied.
-const { app, BrowserWindow, ipcMain, session } = require("electron");
+const { app, BrowserWindow, ipcMain, session, shell } = require("electron");
 const path = require("node:path");
 const http = require("node:http");
 const { execFile } = require("node:child_process");
-const { DEFAULT_PORT, readJSON, validateLocalServer, cordlessHome, resolveOrigin, sanitizeCredential } = require("./lib/resolve");
+const { DEFAULT_PORT, readJSON, validateLocalServer, cordlessHome, findInstalledCli, resolveOrigin, sanitizeCredential } = require("./lib/resolve");
 
 const HOME = cordlessHome();
 const CRED_FILE = path.join(HOME, "desktop-credential.json");
@@ -54,9 +54,13 @@ function loadCredentialForRenderer() {
   return sanitizeCredential(readJSON(CRED_FILE), currentOrigin);
 }
 
-// Resolve the installed cordless CLI to an absolute path (never from the renderer).
+// Resolve the installed cordless CLI to an absolute path (never from the renderer). Checks the
+// standard `cordless setup` install dir first (robust against a stale PATH in this GUI process),
+// then falls back to PATH via where/which.
 function resolveCordlessCli() {
   return new Promise((resolve) => {
+    const installed = findInstalledCli();
+    if (installed) return resolve(installed);
     const finder = process.platform === "win32" ? "where" : "which";
     execFile(finder, ["cordless"], { timeout: 4000 }, (err, stdout) => {
       if (err || !stdout) return resolve(null);
@@ -68,14 +72,20 @@ function resolveCordlessCli() {
 
 async function startDaemon() {
   const cli = await resolveCordlessCli();
-  if (!cli) return { ok: false, error: "cordless CLI not found on PATH" };
+  if (!cli) {
+    return {
+      ok: false,
+      error: "The cordless CLI isn't installed. Download it from the Releases page and run 'cordless setup', then reopen this app.",
+      needsCli: true,
+    };
+  }
   return new Promise((resolve) => {
     // No renderer input; fixed argv; no shell.
     const child = execFile(cli, ["start"], { detached: true, stdio: "ignore", windowsHide: true }, () => {});
     child.on("error", (e) => resolve({ ok: false, error: e.message }));
     child.unref();
     // Give it a moment, then report; the renderer/main will re-health-check on retry.
-    setTimeout(() => resolve({ ok: true }), 600);
+    setTimeout(() => resolve({ ok: true }), 800);
   });
 }
 
@@ -151,6 +161,12 @@ app.whenReady().then(() => {
   ipcMain.handle("cordless:start-daemon", async (event) => {
     if (!senderIsTrusted(event)) return { ok: false, error: "untrusted sender" };
     return startDaemon();
+  });
+  ipcMain.handle("cordless:open-releases", (event) => {
+    if (!senderIsTrusted(event)) return { ok: false };
+    // Fixed URL, never from the renderer — opens the CLI download page in the user's browser.
+    shell.openExternal("https://github.com/naveenneog/cordless/releases/latest");
+    return { ok: true };
   });
   ipcMain.handle("cordless:retry", async (event) => {
     if (!senderIsTrusted(event)) return { ok: false };

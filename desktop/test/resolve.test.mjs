@@ -7,7 +7,7 @@ import crypto from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { validateLocalServer, resolveOrigin, sanitizeCredential } = require("../lib/resolve.js");
+const { validateLocalServer, resolveOrigin, sanitizeCredential, installedCliCandidates, findInstalledCli } = require("../lib/resolve.js");
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log("FAIL:", msg); } };
@@ -52,6 +52,21 @@ ok(sanitizeCredential({ deviceId: "d", token: "t".repeat(4097) }, "x") === null,
   fs.writeFileSync(path.join(home, "desktop-credential.json"), JSON.stringify({ deviceId: "d", token: "t", server: "https://evil.example" }));
   ok(resolveOrigin(home) === "http://127.0.0.1:8123", "bad credential.server falls back to config");
   fs.rmSync(home, { recursive: true, force: true });
+}
+
+// installed-CLI resolution — the desktop app finds a `cordless setup` install even with a stale PATH
+{
+  const cands = installedCliCandidates();
+  ok(Array.isArray(cands) && cands.length >= 1, "installedCliCandidates returns paths");
+  ok(cands.every((c) => path.isAbsolute(c)), "candidate paths are absolute");
+  const expectedName = process.platform === "win32" ? "cordless.exe" : "cordless";
+  ok(cands.some((c) => c.endsWith(expectedName)), "candidates end with the platform exe name");
+  ok(findInstalledCli(["/definitely/not/here/cordless"]) === null, "findInstalledCli returns null when absent");
+  // a real file resolves
+  const tmp = path.join(os.tmpdir(), "cordless-cli-" + crypto.randomBytes(3).toString("hex"));
+  fs.writeFileSync(tmp, "x");
+  ok(findInstalledCli([tmp]) === tmp, "findInstalledCli returns an existing file");
+  fs.rmSync(tmp, { force: true });
 }
 
 console.log(`\n=== DESKTOP RESOLVE ${fail === 0 ? "PASS" : "FAIL"} (${pass} ok, ${fail} bad) ===`);

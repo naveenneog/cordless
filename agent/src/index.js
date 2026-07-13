@@ -176,6 +176,7 @@ async function main() {
         dir: optValue("--dir"),
         noAutostart: args.includes("--no-autostart"),
         noPath: args.includes("--no-path"),
+        noStart: args.includes("--no-start"),
         pathOnly: args.includes("--path-only"),
         dryRun: args.includes("--dry-run"),
         uninstall: args.includes("--uninstall"),
