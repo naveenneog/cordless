@@ -3,6 +3,24 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
+## v0.9.0 — choco shim fix + in-CLI help (current)
+
+Two per-feature branches, then released as 0.9.0 (the choco-ready, self-documenting release):
+
+- `fix/daemon-job-breakaway` — on Windows the daemon is now launched via **WMI
+  `Win32_Process.Create`** (parented to WmiPrvSE) so it is NOT in the caller's job object.
+  Chocolatey's shimgen shim waits on its job object, so the old detached `spawn()` kept
+  `cordless start` blocked until the daemon exited (daemon survived; launcher hung). Verified with a
+  real shimgen shim: `start` returns in ~2.9s and the daemon keeps serving PTYs. `agent/src/service.js`
+  `startDaemonDetached()` → `startDaemonWindowsBreakaway()` (WMI, polls the pidfile) with a `spawn()`
+  fallback; POSIX unchanged. Pure `windowsDaemonCommandLine()` (quoting) is unit-tested in
+  `agent/test/service.mjs`. Consulted Sol (turn 28) on the job-breakaway approach.
+- `feature/cli-help` — a data-driven help system. `agent/src/cli/help.js` holds one `COMMANDS`
+  registry that renders both `cordless help` (grouped overview) and `cordless help <cmd>` /
+  `cordless <cmd> --help` (USAGE + wrapped description + OPTIONS + EXAMPLES + aliases). `index.js`
+  intercepts `<command> --help` and routes `help [topic]`; the old static HELP string is gone. Unknown
+  commands print the overview + exit 1. Guarded by `agent/test/help.mjs`. Harness now **27/27**.
+
 ## Distribution — Chocolatey (packaging/chocolatey/)
 
 Chocolatey package for the CLI, tested locally end-to-end (pack -> install -> verify -> uninstall).
@@ -11,11 +29,12 @@ verifies its SHA256, extracts it, and lets Chocolatey shim `cordless.exe`. `choc
 writes `.ignore` files next to the bundled node-pty helper exes (`OpenConsole.exe`/`winpty-agent.exe`)
 so only `cordless.exe` is shimmed onto PATH. `update-checksum.ps1 -Version X` refreshes the version +
 SHA256 across the nuspec/install/verification files; `README.md` has the pack/test/**push** steps
-(needs a community.chocolatey.org account + API key). Known caveat: `cordless start` (detached) *waits*
-under the choco shim (Windows job-object) though the daemon survives — the postinstall recommends
-`cordless` / `cordless install`, not `cordless start`. Not yet pushed (awaiting the user's account).
+(needs a community.chocolatey.org account + API key). The old `cordless start` shim-hang is **fixed**
+in v0.9.0 (WMI job breakaway — see above); `cordless`, `cordless start`, and `cordless install` are all
+safe under the shim. After the v0.9.0 release builds, run `update-checksum.ps1 -Version 0.9.0` and push.
+Not yet pushed to community.chocolatey.org (awaiting the user's account).
 
-## v0.8.3 — open sessions in new terminal tabs (current)
+## v0.8.3 — open sessions in new terminal tabs
 
 `feature/open-in-new-tab`: from the dashboard, press <kbd>o</kbd> to open the selected session in a
 **new terminal tab/window** running `cordless attach <id>`, so the dashboard keeps running in its own
