@@ -1,0 +1,28 @@
+VERIFICATION
+
+Verification is intended to assure a user that the packaged binary matches the
+official release published by the software author.
+
+This package downloads the official self-contained cordless CLI from the project's
+GitHub release (same file the project publishes on its website):
+
+  Release:  https://github.com/naveenneog/cordless/releases/tag/v0.8.3
+  File:     cordless-cli-windows-x64.zip
+  URL:      https://github.com/naveenneog/cordless/releases/download/v0.8.3/cordless-cli-windows-x64.zip
+
+The embedded SHA256 checksum (in tools\chocolateyInstall.ps1) is:
+
+  x64:  D49D1693280F7D93B5229BC4D58BCF53C0F120E67580D48C9079FE954DBF1A4D
+
+To verify yourself:
+
+  PowerShell:
+    Invoke-WebRequest -Uri "https://github.com/naveenneog/cordless/releases/download/v0.8.3/cordless-cli-windows-x64.zip" -OutFile cordless.zip
+    Get-FileHash .\cordless.zip -Algorithm SHA256
+
+  The hash must equal the value above.
+
+The software is published by the project author (naveenneog) at
+https://github.com/naveenneog/cordless and is licensed under the PolyForm
+Noncommercial License 1.0.0 (see LICENSE.txt in this folder). cordless is
+source-available and free for noncommercial use.

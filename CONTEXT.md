@@ -3,6 +3,18 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
+## Distribution — Chocolatey (packaging/chocolatey/)
+
+Chocolatey package for the CLI, tested locally end-to-end (pack -> install -> verify -> uninstall).
+The package downloads the official `cordless-cli-windows-x64.zip` from the matching GitHub release,
+verifies its SHA256, extracts it, and lets Chocolatey shim `cordless.exe`. `chocolateyInstall.ps1`
+writes `.ignore` files next to the bundled node-pty helper exes (`OpenConsole.exe`/`winpty-agent.exe`)
+so only `cordless.exe` is shimmed onto PATH. `update-checksum.ps1 -Version X` refreshes the version +
+SHA256 across the nuspec/install/verification files; `README.md` has the pack/test/**push** steps
+(needs a community.chocolatey.org account + API key). Known caveat: `cordless start` (detached) *waits*
+under the choco shim (Windows job-object) though the daemon survives — the postinstall recommends
+`cordless` / `cordless install`, not `cordless start`. Not yet pushed (awaiting the user's account).
+
 ## v0.8.3 — open sessions in new terminal tabs (current)
 
 `feature/open-in-new-tab`: from the dashboard, press <kbd>o</kbd> to open the selected session in a

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>cordless</id>
+    <version>0.8.3</version>
+    <packageSourceUrl>https://github.com/naveenneog/cordless/tree/main/packaging/chocolatey</packageSourceUrl>
+    <owners>naveenneog</owners>
+    <title>cordless (Install)</title>
+    <authors>naveenneog</authors>
+    <projectUrl>https://naveenneog.github.io/cordless/</projectUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/naveenneog/cordless@main/docs/icon.png</iconUrl>
+    <copyright>Copyright naveenneog</copyright>
+    <licenseUrl>https://github.com/naveenneog/cordless/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/naveenneog/cordless</projectSourceUrl>
+    <docsUrl>https://naveenneog.github.io/cordless/</docsUrl>
+    <bugTrackerUrl>https://github.com/naveenneog/cordless/issues</bugTrackerUrl>
+    <tags>cordless cli terminal remote pty coding-agents claude codex copilot developer-tools</tags>
+    <summary>CLI-first remote terminal: manage many coding-agent/shell sessions and drive them from your phone.</summary>
+    <description>
+cordless is a **CLI-first remote terminal**. Install it on your dev box or laptop, run `cordless`, and
+it opens a full-screen terminal dashboard with a **pairing QR** — scan it with the cordless phone app
+and your sessions (shell, Claude Code, Codex, GitHub Copilot, or your own custom launchers) are in your
+pocket.
+
+### Highlights
+- **Self-contained** — bundles its own Node runtime + `node-pty`; nothing else to install.
+- **Persistent sessions** that survive disconnects and reboots, with scrollback **history**.
+- **Chrome-style tab groups**, **custom launchers**, per-session **attention state** (know which agent is waiting for you), and phone notifications.
+- **Open a session in a new terminal tab** (`o` in the dashboard) — like browser tabs.
+- **Secure by default** — per-device hashed tokens, single-use pairing codes only the local daemon can mint, an Origin allowlist, and strict headers; never runs as root, never exposed to the internet (use Tailscale).
+
+### After install
+Run `cordless` to start the daemon and show the pairing QR. Optionally `cordless install` to start the daemon at login.
+
+### Notes
+This package downloads the official self-contained CLI zip from the project's GitHub release and verifies its SHA256 (see `tools\VERIFICATION.txt`). Licensed under **PolyForm Noncommercial 1.0.0** (free for noncommercial use; source-available).
+    </description>
+    <releaseNotes>https://github.com/naveenneog/cordless/releases/tag/v0.8.3</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
