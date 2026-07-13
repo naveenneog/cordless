@@ -10,10 +10,23 @@ await c.connect();
 const id = await c.createSession("shell", { title: "out" });
 
 const TOKEN = "SEARCHABLE_TOKEN_98765";
-c.send({ type: "session.input", sessionId: id, data: Buffer.from(`echo ${TOKEN}\r`).toString("base64") });
-await sleep(1500);
 
-const text = await c.tail(id, 40);
+// Wait for the shell to be ready (a prompt appears) before typing, so the echo isn't dropped during
+// startup, then poll the retained buffer for the token — robust against slow shell startup / CI load.
+for (let i = 0; i < 25; i++) {
+  await sleep(400);
+  const t = await c.tail(id, 20);
+  if (/PS .*>/.test(t) || /[$#%>❯]\s*$/.test(t)) break;
+}
+c.send({ type: "session.input", sessionId: id, data: Buffer.from(`echo ${TOKEN}\r`).toString("base64") });
+
+let text = "";
+for (let i = 0; i < 25; i++) {
+  await sleep(400);
+  text = await c.tail(id, 60);
+  if (text.includes(TOKEN)) break;
+  if (i === 8) c.send({ type: "session.input", sessionId: id, data: Buffer.from(`echo ${TOKEN}\r`).toString("base64") }); // resend once if startup ate it
+}
 ok(typeof text === "string" && text.includes(TOKEN), "session.tail includes the echoed token");
 
 const matches = await c.search(id, "SEARCHABLE_TOKEN", 50);
