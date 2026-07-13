@@ -154,6 +154,20 @@ async function main() {
     }
   }
 
+  // Phase C: seamless resume — attach from the dashboard and confirm the refresh timer does not
+  // repaint the dashboard over the attached session (the user-reported "can't resume" bug).
+  console.log("== phase C: seamless resume (dashboard attach) ==");
+  {
+    const home = freshHome();
+    const d = startDaemon(home);
+    if (!(await waitHealthy())) { record("phaseC:daemon-start", false); await stopDaemon(d); }
+    else {
+      const { code, out } = await runTest("resume_dash.mjs", home);
+      record("resume_dash", code === 0 && /RESUME-DASH PASS/.test(out));
+      await stopDaemon(d);
+    }
+  }
+
   const failed = results.filter((r) => !r.ok);
   console.log("\n================ SUMMARY ================");
   for (const r of results) console.log(`  ${r.ok ? "ok  " : "FAIL"}  ${r.name}${r.note ? "  " + r.note : ""}`);
