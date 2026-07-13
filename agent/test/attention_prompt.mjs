@@ -17,16 +17,24 @@ const cmd = os.platform() === "win32"
   : 'read -p "Apply these edits? (y/n) " x\r';
 c.send({ type: "session.input", sessionId: id, data: Buffer.from(cmd).toString("base64") });
 
-// Wait past PROMPT_QUIET (1.5s) + INPUT_GRACE (2s) + a manager tick.
-await sleep(4500);
-let s = (await c.listSessions()).find((x) => x.sessionId === id);
+// Poll for the prompt (past PROMPT_QUIET 1.5s + INPUT_GRACE 2s + a tick), robust under CI load.
+let s = null;
+for (let i = 0; i < 20; i++) {
+  await sleep(500);
+  s = (await c.listSessions()).find((x) => x.sessionId === id);
+  if (s && s.attention === "prompt") break;
+}
 ok(s && s.attention === "prompt", 'confirm prompt detected as attention:"prompt" (got ' + (s && s.attention) + ")");
 
-// Answering (sending a newline) clears the attention badge.
+// Answering (sending input) clears the attention badge.
 c.send({ type: "session.input", sessionId: id, data: Buffer.from("y\r").toString("base64") });
-await sleep(800);
-s = (await c.listSessions()).find((x) => x.sessionId === id);
-ok(s && s.attention == null, "answering the prompt clears attention (got " + (s && s.attention) + ")");
+let cleared = false;
+for (let i = 0; i < 10; i++) {
+  await sleep(300);
+  s = (await c.listSessions()).find((x) => x.sessionId === id);
+  if (s && s.attention == null) { cleared = true; break; }
+}
+ok(cleared, "answering the prompt clears attention (got " + (s && s.attention) + ")");
 
 await c.killSession(id, "force");
 c.close();

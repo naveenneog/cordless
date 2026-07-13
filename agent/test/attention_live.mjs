@@ -18,10 +18,13 @@ ok(!!id, "created a session");
 // Produce a little output, then go quiet.
 c.send({ type: "session.input", sessionId: id, data: Buffer.from("echo hi\r").toString("base64") });
 
-await sleep(6800); // > IDLE_AFTER_MS (5s) after the echo output
-
-const list = await c.listSessions();
-const s = list.find((x) => x.sessionId === id);
+// Poll for the idle transition (IDLE_AFTER_MS = 5s) up to ~12s so the test is robust under CI load.
+let s = null;
+for (let i = 0; i < 24; i++) {
+  await sleep(500);
+  s = (await c.listSessions()).find((x) => x.sessionId === id);
+  if (s && s.activity === "idle") break;
+}
 ok(!!s && "activity" in s && "attention" in s && "attentionRevision" in s, "session.list carries attention fields");
 ok(s && s.activity === "idle", "quiet session settled to idle (got " + (s && s.activity) + ")");
 ok(s && s.attention == null, "no false-positive attention on a bare shell (got " + (s && s.attention) + ")");
