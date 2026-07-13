@@ -23,12 +23,13 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless devices revoke <id>   revoke a device's token
 
   cordless sessions              list sessions
-  cordless new [shell|claude|codex] [--cwd <dir>] [--title <t>]
+  cordless new [shell|claude|codex|<profile>] [--cwd <dir>] [--title <t>]
   cordless attach [id]           attach to a session (no id = resume the most recent; detach: Ctrl-] d)
   cordless resume                jump back into your most-recently-active session
   cordless output <id> [--lines N] [--copy]   print/copy a session's last output
   cordless search <id> <query>   search a session's retained scrollback
   cordless kill <id>             stop a session
+  cordless profiles [show <name>]   list launch profiles (built-in + your custom ones)
   cordless workspace <save|open|list|delete> [name]   named session templates
   cordless history [status|clear] [id] [--all]   persisted scrollback (survives restart)
 
@@ -143,6 +144,12 @@ async function main() {
       const { runHistory } = await import("./cli/commands.js");
       const positionals = args.filter((a) => !a.startsWith("-"));
       await runHistory(positionals[0], positionals[1], { all: args.includes("--all") });
+      break;
+    }
+    case "profiles": {
+      const { runProfiles } = await import("./cli/commands.js");
+      const positionals = args.filter((a) => !a.startsWith("-"));
+      await runProfiles(positionals[0], positionals[1]);
       break;
     }
     case "install":

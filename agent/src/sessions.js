@@ -17,6 +17,7 @@ import xtermHeadless from "@xterm/headless";
 import addonSerialize from "@xterm/addon-serialize";
 import { out } from "./protocol.js";
 import { loadSessionManifest, saveSessionManifest, saveSessionHistory, loadSessionHistory, clearSessionHistory, listSessionHistoryIds } from "./state.js";
+import { validateProfile, profileExecutable, resolveExecutable, expandHome } from "./profiles.js";
 import {
   THRESHOLDS,
   hasBell,
@@ -131,8 +132,13 @@ class Session {
     this._serialize = new SerializeAddon();
     this.term.loadAddon(this._serialize);
 
-    const env = { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" };
-    this.pty = pty.spawn(resolveShell(mgr.cfg), [], {
+    const env = { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor", ...(profileCfg.env || {}) };
+    // A profile with `command` is spawned directly (Sol's model); otherwise spawn the shell and, for
+    // legacy agent profiles (claude/codex), type their `initCommand` once it's ready. Resolve the
+    // command to a full path first — node-pty on Windows won't find a bare name via PATHEXT itself.
+    const spawnCmd = profileCfg.command ? resolveExecutable(profileCfg.command, env) || profileCfg.command : resolveShell(mgr.cfg);
+    const spawnArgs = profileCfg.command ? (profileCfg.args || []) : [];
+    this.pty = pty.spawn(spawnCmd, spawnArgs, {
       name: "xterm-256color",
       cols,
       rows,
@@ -142,7 +148,7 @@ class Session {
     this.pty.onData((d) => this._onData(d));
     this.pty.onExit((e) => this._onExit(e));
 
-    if (profileCfg.initCommand) {
+    if (!profileCfg.command && profileCfg.initCommand) {
       setTimeout(() => {
         if (this.state === "running") this.pty.write(`${profileCfg.initCommand}\r`);
       }, 500);
@@ -689,13 +695,24 @@ export class SessionManager {
     }
     const profileCfg = this.cfg.profiles[profile];
     if (!profileCfg) throw new Error(`unknown profile: ${profile}`);
+    const { ok, errors } = validateProfile(profile, profileCfg);
+    if (!ok) throw new Error(`profile "${profile}" is misconfigured: ${errors.join("; ")}`);
+    // Fail a launch clearly if the profile's executable isn't on the daemon's PATH (autostart PATH
+    // often differs from the interactive shell). A bare shell has no executable and is always fine.
+    const exe = profileExecutable(profileCfg);
+    if (exe && !resolveExecutable(exe, process.env)) {
+      throw new Error(`profile "${profile}" unavailable: "${exe}" was not found in the daemon PATH. Run \`cordless doctor\`.`);
+    }
+    // Precedence: explicit `cordless new` option > profile value > daemon default.
+    const effectiveCwd = cwd || (profileCfg.cwd ? expandHome(profileCfg.cwd) : undefined);
+    const effectiveTitle = title || profileCfg.title || undefined;
     const s = new Session(this, {
       profile,
       profileCfg,
-      cwd,
+      cwd: effectiveCwd,
       cols: cols || 100,
       rows: rows || 30,
-      title,
+      title: effectiveTitle,
     });
     this.sessions.set(s.id, s);
     this._persistManifest();

@@ -115,6 +115,9 @@ const HistoryClear = z.object({
 // List which sessions have persisted history on disk. Loopback-scoped (server-enforced).
 const HistoryList = z.object({ type: z.literal("history.list"), requestId });
 
+// List the effective launch profiles (built-ins + user), with availability. Read-only.
+const ProfilesList = z.object({ type: z.literal("profiles.list"), requestId });
+
 export const ClientMessage = z.discriminatedUnion("type", [
   Hello,
   SessionList,
@@ -132,6 +135,7 @@ export const ClientMessage = z.discriminatedUnion("type", [
   SessionSearch,
   HistoryClear,
   HistoryList,
+  ProfilesList,
 ]);
 
 // ---- Outgoing frame builders ----
@@ -187,6 +191,7 @@ export const out = {
   sessionSearch: (requestId, sessionId, matches) => ({ type: "session.search.result", requestId, ok: true, sessionId, matches }),
   historyClearResult: (requestId, cleared) => ({ type: "history.clear.result", requestId, ok: true, cleared }),
   historyList: (requestId, items) => ({ type: "history.list.result", requestId, ok: true, items }),
+  profilesList: (requestId, profiles) => ({ type: "profiles.list.result", requestId, ok: true, profiles }),
   pairingCreateResult: (requestId, { pairingId, urls, preferredUrl, code, route, expiresAt }) => ({
     type: "pairing.create.result",
     requestId,

@@ -137,6 +137,37 @@ export async function runSearch(prefix, query, opts = {}) {
   });
 }
 
+// `cordless profiles [show <name>]` — list the effective launchers (built-ins + your custom ones).
+export async function runProfiles(sub, name) {
+  await withClient(async (c) => {
+    const profiles = await c.profiles();
+    if (sub === "show") {
+      const p = profiles.find((x) => x.name === name);
+      if (!p) {
+        console.error(`no profile named "${name}". Run 'cordless profiles'.`);
+        process.exit(1);
+      }
+      console.log("");
+      console.log(`  ${p.name}   ${p.available ? "" : "(unavailable)"}`);
+      console.log(`    source     ${p.source}`);
+      console.log(`    kind       ${p.kind}`);
+      if (p.command) console.log(`    command    ${p.command}${p.resolved ? "  -> " + p.resolved : ""}`);
+      if (p.reason) console.log(`    note       ${p.reason}`);
+      console.log("");
+      return;
+    }
+    console.log("\nlaunch profiles  (cordless new <name>)\n");
+    for (const p of profiles) {
+      const mark = p.available ? " " : "!";
+      const src = p.source === "built-in" ? "" : `[${p.source}]`;
+      const note = p.available ? "" : `  \u2014 ${p.reason}`;
+      console.log(`  ${mark} ${p.name.padEnd(14)} ${String(p.label).padEnd(16)} ${src}${note}`);
+    }
+    console.log('\n  add your own under "profiles" in ~/.cordless/config.json, e.g.');
+    console.log('    "profiles": { "copilot": { "command": "copilot", "attentionPreset": "agent" } }\n');
+  });
+}
+
 // `cordless history [status|clear] [session] [--all]` — inspect or clear persisted session history.
 export async function runHistory(sub, prefix, opts = {}) {
   const action = sub || "status";

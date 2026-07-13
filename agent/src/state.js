@@ -100,6 +100,15 @@ export function loadConfig() {
   };
 }
 
+// Names of the profiles that ship with cordless (to distinguish user/override profiles for display).
+export const BUILTIN_PROFILE_NAMES = Object.keys(DEFAULT_CONFIG.profiles);
+
+// The raw `profiles` map exactly as the user wrote it in config.json (before the built-in merge).
+export function loadRawUserProfiles() {
+  const c = readJSON(P.config, null);
+  return (c && c.profiles) || {};
+}
+
 // ---- Hash helpers ----
 export function sha256(s) {
   return crypto.createHash("sha256").update(s).digest("hex");
