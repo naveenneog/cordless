@@ -3,7 +3,19 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
-## v0.8.2 — install QA (current)
+## v0.8.3 — open sessions in new terminal tabs (current)
+
+`feature/open-in-new-tab`: from the dashboard, press <kbd>o</kbd> to open the selected session in a
+**new terminal tab/window** running `cordless attach <id>`, so the dashboard keeps running in its own
+tab and you can launch / resume more — like browser tabs (the user's ask: "launch the attach session
+to a new tab so I can resume back"). New `agent/src/cli/openterm.js`: `selfCmd()` (relaunch cordless —
+SEA exe or `node src/index.js`), `newTerminalCommand()`/`openInNewTerminal()` — **Windows Terminal**
+`wt -w 0 new-tab --title <t> <cordless> attach <id>` (verified: wt launches the command), a
+`cmd /c start "" ...` console fallback, and macOS `osascript`/Linux emulator paths; title sanitized
+(a renamed session title can't inject wt/shell args). CLI `cordless attach <id> --new-window` (`--tab`
+/`-w`). Dashboard `o` key + footer; `test/openterm.mjs` (headless-tolerant). Harness 25/25.
+
+## v0.8.2 — install QA
 
 Fixes to the install experience (`fix/install-qa`):
 

@@ -25,6 +25,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless sessions              list sessions
   cordless new [shell|claude|codex|<profile>] [--cwd <dir>] [--title <t>]
   cordless attach [id]           attach to a session (no id = resume the most recent; detach: Ctrl-] d)
+  cordless attach <id> --new-window   open the session in a NEW terminal tab/window (keeps this one)
   cordless resume                jump back into your most-recently-active session
   cordless output <id> [--lines N] [--copy]   print/copy a session's last output
   cordless search <id> <query>   search a session's retained scrollback
@@ -112,7 +113,9 @@ async function main() {
     case "attach":
     case "resume": {
       const { runAttach } = await import("./cli/commands.js");
-      await runAttach(args[0]);
+      const positional = args.find((a) => !a.startsWith("-"));
+      const newWindow = args.includes("--new-window") || args.includes("--tab") || args.includes("-w");
+      await runAttach(positional, { newWindow });
       break;
     }
     case "output": {

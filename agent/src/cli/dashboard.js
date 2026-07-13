@@ -3,6 +3,7 @@
 import { DaemonClient, ensureDaemon, daemonBaseUrl } from "./client.js";
 import { buildFrame, dim, bold, cyan, inverse, red, green, truncate, visibleSessions } from "./render.js";
 import { attachSession } from "./attach.js";
+import { openInNewTerminal } from "./openterm.js";
 import { loadDevices, revokeDevice } from "../state.js";
 import { VERSION } from "../version.js";
 
@@ -562,6 +563,16 @@ export async function runDashboard({ once = false } = {}) {
         pending = "group";
         state.message = "group: n=new \u00b7 a=assign \u00b7 u=ungroup \u00b7 c=collapse \u00b7 r=rename \u00b7 d=delete \u00b7 (esc)";
         break;
+      case "o": {
+        const sess = state.sessions[state.selected];
+        if (sess) {
+          const r = openInNewTerminal(["attach", sess.sessionId], { title: sess.title || "cordless" });
+          state.message = r.ok
+            ? `opened "${sess.title}" in a new ${r.method === "wt" ? "tab" : "window"} \u2014 this dashboard stays open`
+            : "open in new window failed: " + (r.error || "unknown") + " (press enter to attach here instead)";
+        }
+        break;
+      }
       case "f": {
         const order = ["all", "attention", "claude", "codex", "copilot", "shell"];
         const idx = order.indexOf(state.filter || "all");
