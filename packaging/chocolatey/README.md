@@ -38,15 +38,20 @@ Verified: the checksum matches, **only `cordless.exe` is shimmed** (the bundled 
 `OpenConsole.exe`, `winpty-agent.exe` — get `.ignore` files so they don't leak onto `PATH`), and the
 shimmed binary finds its `resources/` (node-pty) and spawns PTYs correctly.
 
-### `cordless start` works cleanly under the shim
+### `cordless start` under the shim (first-run slowness, not a hang)
 
-Chocolatey's shim (shimgen) waits on its **job object**, so a normally-detached child (the daemon)
-would keep `cordless start` blocked until the daemon exits. cordless avoids this on Windows by
-launching the daemon via **WMI `Win32_Process.Create`**, so the daemon is parented to `WmiPrvSE` and is
-**not** a member of the shim's job — `cordless start` returns immediately (~2–3s) while the daemon keeps
-running. This was verified through a real shimgen shim: `start` returned in ~2.9s and the daemon stayed
-up and served PTY sessions. `cordless`, `cordless start`, and `cordless install` are all safe under the
-shim.
+`cordless start` launches the daemon as a detached child whose stdio is redirected to
+`~/.cordless/daemon.log` (not the shim's pipes), so the shim returns as soon as the launcher exits —
+verified through a real shimgen shim, including with a custom `CORDLESS_HOME`: `start` returned, the
+daemon ran under the right home, stayed up, and served PTY sessions. `cordless`, `cordless start`, and
+`cordless install` are all safe under the shim.
+
+The one thing to expect: the **very first** `cordless start` after install can take ~10–15s before it
+returns, because Windows (Defender / SmartScreen) scans the ~100 MB self-contained exe before Node even
+begins executing. That is the OS scanning the binary, not the launcher waiting on the daemon — it is a
+one-time cost and subsequent runs are fast. (An earlier build tried a WMI job-object breakaway to
+"fix" this; it turned out to be unnecessary and it dropped `CORDLESS_HOME`, so a plain detached spawn is
+used instead.)
 
 ## Push to the Chocolatey community repository (needs an account)
 
