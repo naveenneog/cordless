@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>cordless — remote terminals in your pocket</title>
-    <meta name="description" content="cordless — a CLI-first remote terminal. Run cordless, scan the QR, and manage many Claude Code / Codex / shell sessions from your phone. Self-contained binary, no Node needed." />
+    <meta name="description" content="cordless — a CLI-first remote terminal. Run cordless, scan the QR, and manage many Claude Code / Codex / GitHub Copilot / shell sessions from your phone. Tab groups, custom launchers, rename, persisted history. Self-contained binary, no Node needed." />
     <link rel="icon" type="image/png" href="./icon.png" />
     <style>
       :root {
@@ -71,10 +71,24 @@
           cordless is a single self-contained command you install on your dev box or laptop. Run
           <code>cordless</code> and it opens a full-screen terminal <strong>dashboard</strong> whose starting
           screen shows a <strong>pairing QR</strong> — scan it with the phone app and your sessions (a shell,
-          <code>claude</code>, or <code>codex</code>) are in your pocket. Sessions keep running when you
-          disconnect; the daemon stays up after you close the dashboard, and reconnecting replays where you
-          left off.
+          <code>claude</code>, <code>codex</code>, <code>copilot</code>, or your own <strong>custom
+          launchers</strong>) are in your pocket. Organise them into <strong>tab groups</strong>, rename
+          tabs, and keep going after a reboot — sessions are restored with their <strong>scrollback
+          history</strong>. The daemon stays up after you close the dashboard, and reconnecting replays where
+          you left off.
         </p>
+      </section>
+
+      <section>
+        <h2>New in v0.8</h2>
+        <div class="grid">
+          <div class="card"><h3>🗂️ Tab groups</h3><p>Chrome-mobile-style groups for when you're juggling &gt;10 sessions. Collapsible group headers in the dashboard, group chips on the phone, and a smart-view filter (All · Attention · Claude · Codex · Copilot · Shell).</p></div>
+          <div class="card"><h3>🚀 Custom launchers</h3><p>Define your own profiles in <code>~/.cordless/config.json</code> — any command, args, cwd, env. Missing executables show as unavailable instead of crashing. <code>cordless profiles</code> lists them all.</p></div>
+          <div class="card"><h3>🤖 GitHub Copilot CLI</h3><p>A built-in <code>copilot</code> profile alongside <code>claude</code> and <code>codex</code>, with the same waiting/finished attention detection agents get.</p></div>
+          <div class="card"><h3>💾 Persisted history</h3><p>A capped, plain-text scrollback is saved per session, so a reopened session after a reboot shows what it was doing before — <code>cordless history</code> to inspect or clear it.</p></div>
+          <div class="card"><h3>✏️ Rename tabs</h3><p>Rename any session — <code>cordless rename &lt;id&gt; &lt;title&gt;</code>, the dashboard <code>e</code> key, or long-press on the phone. Changes broadcast live to every connected client.</p></div>
+          <div class="card"><h3>📦 Real installer</h3><p><code>cordless setup</code> installs the binary to a stable path, adds it to <code>PATH</code>, and registers autostart — no more hand-extracting a zip.</p></div>
+        </div>
       </section>
 
       <section>
@@ -96,8 +110,9 @@
             <p>
               <strong>Nothing.</strong> The cordless CLI is a self-contained binary (its own Node runtime +
               <code>node-pty</code>) for Windows or Linux. Optional: coding agents on <code>PATH</code>
-              (<code>claude</code>, <code>codex</code>) if you want those profiles. <em>(Building from source
-              needs Node 22+ and a C/C++ toolchain for <code>node-pty</code>.)</em>
+              (<code>claude</code>, <code>codex</code>, <code>copilot</code>) for those built-in profiles, or
+              add your own launchers. <em>(Building from source needs Node 22+ and a C/C++ toolchain for
+              <code>node-pty</code>.)</em>
             </p>
           </div>
           <div class="card">
@@ -144,9 +159,10 @@
         <pre>Windows   cordless-cli-windows-x64.zip    →  run cordless.exe
 Linux     cordless-cli-linux-x64.tar.gz   →  run ./cordless
 macOS     use the desktop app, or build from source (CLI binary coming)</pre>
-        <p style="color: var(--muted)">Put it on your <code>PATH</code>, then just run it:</p>
-        <pre>cordless            # opens the dashboard: daemon status + a pairing QR + your sessions
-cordless install    # keep the daemon running at login, so your sessions are always there</pre>
+        <p style="color: var(--muted)">Put it on your <code>PATH</code>, then just run it — or let cordless install itself:</p>
+        <pre>cordless setup      # installs cordless to a stable path, adds it to PATH + autostart
+cordless            # opens the dashboard: daemon status + a pairing QR + your sessions
+cordless install    # (alternative) just register the daemon to run at login</pre>
         <h3>2 · Pair your phone</h3>
         <p style="color: var(--muted)">
           The dashboard's starting screen shows a <strong>QR</strong>. Install the
@@ -163,7 +179,9 @@ cordless install    # keep the daemon running at login, so your sessions are alw
         <p style="color: var(--muted); font-size: 14px">
           Manage it: <code>cordless status</code> · <code>cordless doctor</code> ·
           <code>cordless sessions</code> · <code>cordless attach &lt;id&gt;</code> ·
-          <code>cordless notify test</code> · <code>cordless stop</code>.
+          <code>cordless resume</code> · <code>cordless profiles</code> ·
+          <code>cordless group</code> · <code>cordless rename &lt;id&gt; &lt;title&gt;</code> ·
+          <code>cordless history</code> · <code>cordless notify test</code> · <code>cordless stop</code>.
         </p>
         <details style="margin-top: 14px; color: var(--muted)">
           <summary style="cursor: pointer">Prefer to run from source? (Node 22+)</summary>
