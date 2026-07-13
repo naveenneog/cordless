@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import { installService, uninstallService, stopDaemon } from "../service.js";
+import { installService, uninstallService, stopDaemon, startDaemonDetached, runningPid } from "../service.js";
 import { IS_SEA } from "../runtime.js";
 import { VERSION } from "../version.js";
 
@@ -94,7 +94,18 @@ export function runSetup(opts = {}) {
         console.error("  autostart registration failed: " + (e.message || e));
       }
     }
-    console.log(`\ncordless ${VERSION} is installed. Open a NEW terminal and run:  cordless\n`);
+    // Start the daemon now so the user goes straight to a working `cordless` (QR on the dashboard)
+    // without waiting for the next login — the whole point of an installer.
+    if (!opts.noStart) {
+      try {
+        const pid = startDaemonDetached();
+        if (pid) console.log("  started the cordless daemon (pid " + pid + ")");
+      } catch (e) {
+        console.error("  could not start the daemon now: " + (e.message || e) + " (it will start at next login)");
+      }
+    }
+    console.log(`\ncordless ${VERSION} is installed and running. Open a NEW terminal and run:  cordless`);
+    console.log(`(that opens the dashboard with a QR to pair your phone.)\n`);
     return;
   }
 
@@ -128,6 +139,7 @@ export function runSetup(opts = {}) {
   const args = ["setup", "--path-only", "--dir", dir];
   if (opts.noAutostart) args.push("--no-autostart");
   if (opts.noPath) args.push("--no-path");
+  if (opts.noStart) args.push("--no-start");
   execFileSync(destExe, args, { stdio: "inherit" });
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "cordless-desktop",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "cordless Desktop — hardened Electron shell for the local cordless daemon",
   "author": "naveenneog",

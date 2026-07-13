@@ -3,7 +3,24 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
-## v0.8.0 — history, custom launchers, groups (current)
+## v0.8.2 — install QA (current)
+
+Fixes to the install experience (`fix/install-qa`):
+
+- **`cordless setup` now STARTS the daemon** after copying + PATH + autostart (`startDaemonDetached()`
+  in `setup.js`'s `--path-only` finalize; `--no-start` to skip). Download → `cordless setup` → daemon
+  already running → `cordless` shows the QR — a true one-step installer. QA'd end-to-end with the SEA.
+- **Desktop app finds an installed CLI beyond PATH.** `desktop/lib/resolve.js` gained
+  `installedCliCandidates()`/`findInstalledCli()` (checks `%LOCALAPPDATA%\Programs\cordless\cordless.exe`
+  etc.); `main.js` `resolveCordlessCli()` checks the install dir FIRST, then PATH (fixes a stale GUI
+  PATH after setup). No CLI → `startDaemon` returns `{needsCli:true}` and the fallback screen shows a
+  "Get the cordless CLI" button (`cordless:open-releases` IPC → `shell.openExternal` a fixed URL) +
+  the `cordless setup` hint. `desktop/test/resolve.test.mjs` 29 checks.
+- User's report root cause: only the **desktop** app was installed (a thin Electron shell over the
+  local daemon) with no CLI, so its "Start daemon" and `cordless start` both failed. cordless is
+  CLI-first: the CLI *is* the daemon/installer; the desktop is optional.
+
+## v0.8.0 — history, custom launchers, groups
 
 Six-branch v0.8 program designed with Sol, each feature on its own branch merged `--no-ff`. Harness
 is **23/23** (`npm --prefix agent test`). Shipped:

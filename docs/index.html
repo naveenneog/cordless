@@ -159,10 +159,11 @@
         <pre>Windows   cordless-cli-windows-x64.zip    →  run cordless.exe
 Linux     cordless-cli-linux-x64.tar.gz   →  run ./cordless
 macOS     use the desktop app, or build from source (CLI binary coming)</pre>
-        <p style="color: var(--muted)">Put it on your <code>PATH</code>, then just run it — or let cordless install itself:</p>
-        <pre>cordless setup      # installs cordless to a stable path, adds it to PATH + autostart
+        <p style="color: var(--muted)">Put it on your <code>PATH</code>, then just run it — or let cordless install itself in one step:</p>
+        <pre>cordless setup      # installs cordless to a stable path, adds it to PATH + autostart, and STARTS the daemon
 cordless            # opens the dashboard: daemon status + a pairing QR + your sessions
 cordless install    # (alternative) just register the daemon to run at login</pre>
+        <p style="color: var(--muted); font-size: 14px"><code>cordless setup</code> is the whole installer: after it, the daemon is already running — open a <strong>new</strong> terminal and run <code>cordless</code> to see the pairing QR.</p>
         <h3>2 · Pair your phone</h3>
         <p style="color: var(--muted)">
           The dashboard's starting screen shows a <strong>QR</strong>. Install the
@@ -198,9 +199,12 @@ npm --prefix agent run sea   # build a self-contained cordless binary into agent
       <section>
         <h2>Desktop app (optional)</h2>
         <p style="color: var(--muted); max-width: 720px">
-          The CLI is the primary way to run cordless. If you'd rather have a window, a hardened
-          <strong>Electron</strong> shell opens the same UI on your laptop or dev box, talking to your
-          <strong>local</strong> daemon. Same sessions, tabs, and replay as the phone — with a real keyboard.
+          The CLI is the primary way to run cordless — and the desktop app is a thin window over the
+          <strong>same local daemon the CLI runs</strong>, so <strong>install the CLI first</strong>
+          (<code>cordless setup</code>). Then a hardened <strong>Electron</strong> shell opens the same UI
+          on your laptop or dev box. Same sessions, tabs, groups, and replay as the phone — with a real
+          keyboard. If it opens to a "daemon isn't running" screen, it will find your installed CLI and
+          offer to start it (or point you to install it).
         </p>
         <div class="grid">
           <div class="card"><h3>QR-first auth</h3><p>Pairing stays QR/code based. The desktop adds one extra <strong>🖥️ Connect to this computer</strong> button backed by a loopback-only credential.</p></div>
