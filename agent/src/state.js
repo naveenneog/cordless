@@ -14,6 +14,7 @@ const P = {
   pending: path.join(HOME, "pending-pairs.json"),
   sessions: path.join(HOME, "sessions.json"),
   workspaces: path.join(HOME, "workspaces.json"),
+  groups: path.join(HOME, "groups.json"),
   history: path.join(HOME, "history"),
 };
 
@@ -216,6 +217,17 @@ export function loadSessionManifest() {
 }
 export function saveSessionManifest(list) {
   writeJSON(P.sessions, list);
+}
+
+// ---- Session groups (Chrome-mobile-style tab groups) ----
+// A map of groupId -> { id, name, color, order, revision, createdAt, updatedAt }. Session->group
+// assignment lives on each session (persisted in the session manifest as groupId/groupOrder).
+export function loadGroups() {
+  const g = readJSON(P.groups, {});
+  return g && typeof g === "object" ? g : {};
+}
+export function saveGroups(map) {
+  writeJSON(P.groups, map);
 }
 
 // ---- Per-session persisted history (normalized plain-text scrollback, gzipped) ----

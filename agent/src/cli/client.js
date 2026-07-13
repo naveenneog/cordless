@@ -212,6 +212,45 @@ export class DaemonClient {
   profiles() {
     return this._rpc("profiles.list").then((m) => m.profiles || []);
   }
+  listGroups() {
+    return this._rpc("group.list").then((m) => m.groups || []);
+  }
+  createGroup(name, color) {
+    return this._rpc("group.create", { name, color }).then((m) => {
+      if (!m.ok) throw new Error(m.error?.message || "group.create failed");
+      return m.group;
+    });
+  }
+  renameGroup(groupId, name) {
+    return this._rpc("group.rename", { groupId, name }).then((m) => {
+      if (!m.ok) throw new Error(m.error?.message || "group.rename failed");
+      return m.group;
+    });
+  }
+  setGroupColor(groupId, color) {
+    return this._rpc("group.color", { groupId, color }).then((m) => {
+      if (!m.ok) throw new Error(m.error?.message || "group.color failed");
+      return m.group;
+    });
+  }
+  reorderGroup(groupId, order) {
+    return this._rpc("group.reorder", { groupId, order }).then((m) => {
+      if (!m.ok) throw new Error(m.error?.message || "group.reorder failed");
+      return m.group;
+    });
+  }
+  deleteGroup(groupId) {
+    return this._rpc("group.delete", { groupId }).then((m) => {
+      if (!m.ok) throw new Error(m.error?.message || "group.delete failed");
+      return m;
+    });
+  }
+  assignSession(sessionId, groupId, groupOrder) {
+    return this._rpc("group.assign", { sessionId, groupId: groupId ?? null, groupOrder }).then((m) => {
+      if (!m.ok) throw new Error(m.error?.message || "group.assign failed");
+      return m;
+    });
+  }
 
   close() {
     try {

@@ -38,5 +38,34 @@ ok(!frame.includes("\x1b["), "NO_COLOR: frame has no ANSI escape codes");
 const small = buildFrame(state, 40, 20).join("\n");
 ok(small.includes("enlarge"), "small terminal hides the QR and prompts to enlarge");
 
+// grouped view
+const groupedState = {
+  ...state,
+  allSessions: [
+    { sessionId: "a1", profile: "claude", title: "api", state: "running", groupId: "g1", attention: "prompt" },
+    { sessionId: "b2", profile: "shell", title: "notes", state: "running", groupId: null },
+  ],
+  sessions: [],
+  groups: [{ id: "g1", name: "Backend", color: "blue", order: 0 }],
+  filter: "all",
+  collapsed: new Set(),
+  selected: 0,
+};
+const grouped = buildFrame(groupedState, 80, 40).join("\n");
+ok(grouped.includes("Backend"), "grouped view shows the group header");
+ok(grouped.includes("Ungrouped"), "grouped view shows the Ungrouped section");
+ok(grouped.includes("\u25bc Backend"), "expanded group header has a \u25bc arrow");
+ok(grouped.includes("1 waiting"), "group header shows the waiting count");
+ok(grouped.includes("api") && grouped.includes("notes"), "grouped view lists members of each section");
+
+const collapsed = buildFrame({ ...groupedState, collapsed: new Set(["g1"]) }, 80, 40).join("\n");
+ok(collapsed.includes("\u25b6 Backend"), "collapsed group header has a \u25b6 arrow");
+ok(!collapsed.includes("api"), "collapsed group hides its sessions");
+ok(collapsed.includes("notes"), "collapsing one group leaves others visible");
+
+const filtered = buildFrame({ ...groupedState, filter: "shell" }, 80, 40).join("\n");
+ok(filtered.includes("view:"), "the smart-view filter bar is shown");
+ok(!filtered.includes("api"), "filtering to shell hides the claude session");
+
 console.log(`\n=== DASHBOARD-RENDER ${fail === 0 ? "PASS" : "FAIL"} (${pass} ok, ${fail} bad) ===`);
 process.exit(fail === 0 ? 0 : 1);

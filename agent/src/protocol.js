@@ -126,6 +126,27 @@ const HistoryList = z.object({ type: z.literal("history.list"), requestId });
 // List the effective launch profiles (built-ins + user), with availability. Read-only.
 const ProfilesList = z.object({ type: z.literal("profiles.list"), requestId });
 
+// ---- session groups (Chrome-mobile-style tab groups) ----
+const groupId = z.string().min(1).max(128);
+const GroupList = z.object({ type: z.literal("group.list"), requestId });
+const GroupCreate = z.object({
+  type: z.literal("group.create"),
+  requestId,
+  name: z.string().max(200).optional(),
+  color: z.string().max(32).optional(),
+});
+const GroupRename = z.object({ type: z.literal("group.rename"), requestId, groupId, name: z.string().max(200) });
+const GroupColor = z.object({ type: z.literal("group.color"), requestId, groupId, color: z.string().max(32) });
+const GroupReorder = z.object({ type: z.literal("group.reorder"), requestId, groupId, order: z.number().int() });
+const GroupDelete = z.object({ type: z.literal("group.delete"), requestId, groupId });
+const GroupAssign = z.object({
+  type: z.literal("group.assign"),
+  requestId,
+  sessionId,
+  groupId: groupId.nullable(),
+  groupOrder: z.number().int().optional(),
+});
+
 export const ClientMessage = z.discriminatedUnion("type", [
   Hello,
   SessionList,
@@ -145,6 +166,13 @@ export const ClientMessage = z.discriminatedUnion("type", [
   HistoryClear,
   HistoryList,
   ProfilesList,
+  GroupList,
+  GroupCreate,
+  GroupRename,
+  GroupColor,
+  GroupReorder,
+  GroupDelete,
+  GroupAssign,
 ]);
 
 // ---- Outgoing frame builders ----
@@ -217,6 +245,11 @@ export const out = {
   historyClearResult: (requestId, cleared) => ({ type: "history.clear.result", requestId, ok: true, cleared }),
   historyList: (requestId, items) => ({ type: "history.list.result", requestId, ok: true, items }),
   profilesList: (requestId, profiles) => ({ type: "profiles.list.result", requestId, ok: true, profiles }),
+  groupsList: (requestId, groups) => ({ type: "group.list.result", requestId, ok: true, groups }),
+  groupResult: (requestId, group) => ({ type: "group.result", requestId, ok: true, group }),
+  groupAssignResult: (requestId, assignment) => ({ type: "group.assign.result", requestId, ok: true, ...assignment }),
+  // Broadcast the full group list to all clients whenever any group changes.
+  groupsUpdated: (groups) => ({ type: "groups.updated", groups }),
   pairingCreateResult: (requestId, { pairingId, urls, preferredUrl, code, route, expiresAt }) => ({
     type: "pairing.create.result",
     requestId,

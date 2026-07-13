@@ -16,7 +16,7 @@ import pty from "./pty-loader.js";
 import xtermHeadless from "@xterm/headless";
 import addonSerialize from "@xterm/addon-serialize";
 import { out } from "./protocol.js";
-import { loadSessionManifest, saveSessionManifest, saveSessionHistory, loadSessionHistory, clearSessionHistory, listSessionHistoryIds } from "./state.js";
+import { loadSessionManifest, saveSessionManifest, saveSessionHistory, loadSessionHistory, clearSessionHistory, listSessionHistoryIds, loadGroups, saveGroups } from "./state.js";
 import { validateProfile, profileExecutable, resolveExecutable, expandHome } from "./profiles.js";
 import {
   THRESHOLDS,
@@ -86,8 +86,18 @@ function normalizeTitle(raw, fallback) {
   return t || fallback;
 }
 
+// Tab-group colors (Chrome-mobile-style) and group-name normalization (<=40 code points).
+export const GROUP_COLORS = ["blue", "green", "yellow", "red", "purple", "gray"];
+function normalizeGroupName(raw) {
+  let t = (typeof raw === "string" ? raw : "").normalize("NFC");
+  t = t.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").replace(/\s+/g, " ").trim();
+  const cps = [...t];
+  if (cps.length > 40) t = cps.slice(0, 40).join("").trim();
+  return t;
+}
+
 class Session {
-  constructor(mgr, { id, profile, profileCfg, cwd, cols, rows, title }) {
+  constructor(mgr, { id, profile, profileCfg, cwd, cols, rows, title, groupId, groupOrder }) {
     this.mgr = mgr;
     this.id = id || crypto.randomUUID();
     this.generation = crypto.randomUUID();
@@ -99,6 +109,8 @@ class Session {
     this._defaultTitle = `${(profileCfg && profileCfg.label) || profile} \u00b7 ${path.basename(this.cwd) || this.cwd}`;
     this.title = title || this._defaultTitle;
     this.metaRevision = 0; // monotonic session-metadata revision (bumped on rename); clients ignore stale
+    this.groupId = groupId || null; // tab group membership (null = ungrouped)
+    this.groupOrder = typeof groupOrder === "number" ? groupOrder : 0;
     this.createdAt = new Date().toISOString();
     this.lastActivityAt = this.createdAt;
     this.state = "running";
@@ -479,6 +491,8 @@ class Session {
       generation: this.generation,
       title: this.title,
       titleRevision: this.metaRevision,
+      groupId: this.groupId,
+      groupOrder: this.groupOrder,
       profile: this.profile,
       cwd: this.cwd,
       state: this.state,
@@ -640,6 +654,7 @@ export class SessionManager {
     this.sessions = new Map();
     this._onEvent = null; // (frame, { notify, session }) => void  — set by the server
     this._attTimer = null;
+    this.groups = loadGroups(); // { groupId: { id, name, color, order, revision, createdAt, updatedAt } }
   }
 
   // Start the single manager-level attention loop. `onEvent` receives a session.activity frame plus
@@ -716,6 +731,119 @@ export class SessionManager {
     }
   }
 
+  // ---- session groups (Chrome-mobile-style tab groups) ----
+  listGroups() {
+    return Object.values(this.groups).sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || "").localeCompare(b.createdAt || ""));
+  }
+
+  _saveGroups() {
+    try {
+      saveGroups(this.groups);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  _emitGroups() {
+    if (!this._onEvent) return;
+    try {
+      this._onEvent(out.groupsUpdated(this.listGroups()), {});
+    } catch {
+      /* ignore */
+    }
+  }
+
+  createGroup({ name, color } = {}) {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const g = {
+      id,
+      name: normalizeGroupName(name) || "Group",
+      color: GROUP_COLORS.includes(color) ? color : "gray",
+      order: Object.keys(this.groups).length,
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.groups[id] = g;
+    this._saveGroups();
+    this._emitGroups();
+    return g;
+  }
+
+  renameGroup(id, name) {
+    const g = this.groups[id];
+    if (!g) throw new Error("unknown group");
+    const n = normalizeGroupName(name);
+    if (n) g.name = n;
+    g.revision++;
+    g.updatedAt = new Date().toISOString();
+    this._saveGroups();
+    this._emitGroups();
+    return g;
+  }
+
+  setGroupColor(id, color) {
+    const g = this.groups[id];
+    if (!g) throw new Error("unknown group");
+    if (!GROUP_COLORS.includes(color)) throw new Error("invalid color");
+    g.color = color;
+    g.revision++;
+    g.updatedAt = new Date().toISOString();
+    this._saveGroups();
+    this._emitGroups();
+    return g;
+  }
+
+  reorderGroup(id, order) {
+    const g = this.groups[id];
+    if (!g) throw new Error("unknown group");
+    g.order = order | 0;
+    g.revision++;
+    g.updatedAt = new Date().toISOString();
+    this._saveGroups();
+    this._emitGroups();
+    return g;
+  }
+
+  // Deleting a group never kills its sessions — they become ungrouped.
+  deleteGroup(id) {
+    if (!this.groups[id]) throw new Error("unknown group");
+    delete this.groups[id];
+    for (const s of this.sessions.values()) {
+      if (s.groupId === id) {
+        s.groupId = null;
+        s.groupOrder = 0;
+        this._emitUpdated(s, { groupId: null });
+      }
+    }
+    this._persistManifest();
+    this._saveGroups();
+    this._emitGroups();
+    return true;
+  }
+
+  assignSession(sessionId, groupId, groupOrder) {
+    const s = this.sessions.get(sessionId);
+    if (!s) throw new Error("unknown session");
+    if (groupId != null && !this.groups[groupId]) throw new Error("unknown group");
+    s.groupId = groupId || null;
+    if (typeof groupOrder === "number") s.groupOrder = groupOrder;
+    this._persistManifest();
+    this._emitUpdated(s, { groupId: s.groupId, groupOrder: s.groupOrder });
+    return { sessionId, groupId: s.groupId, groupOrder: s.groupOrder };
+  }
+
+  // Drop assignments that point at groups which no longer exist (e.g. deleted while the daemon was off).
+  _pruneGroupAssignments() {
+    for (const s of this.sessions.values()) {
+      if (s.groupId && !this.groups[s.groupId]) {
+        s.groupId = null;
+        s.groupOrder = 0;
+      }
+    }
+  }
+
   // ---- persisted-history admin (used by the `history.clear` / `history.list` ops) ----
   // Clear on-disk history. With an id, clear just that one; otherwise clear every persisted file.
   // Cancels any pending debounced save so a live session doesn't immediately re-write it.
@@ -782,7 +910,7 @@ export class SessionManager {
     if (this.cfg.restoreSessions === false) return;
     const running = [...this.sessions.values()]
       .filter((s) => s.state === "running")
-      .map((s) => ({ sessionId: s.id, profile: s.profile, cwd: s.cwd, title: s.title, cols: s.cols, rows: s.rows }));
+      .map((s) => ({ sessionId: s.id, profile: s.profile, cwd: s.cwd, title: s.title, cols: s.cols, rows: s.rows, groupId: s.groupId, groupOrder: s.groupOrder }));
     try {
       saveSessionManifest(running);
     } catch {
@@ -814,6 +942,8 @@ export class SessionManager {
           cols: e.cols || 100,
           rows: e.rows || 30,
           title: e.title,
+          groupId: e.groupId || null,
+          groupOrder: e.groupOrder || 0,
         });
         // Keep the previous plain-text scrollback as frozen context shown above the reopened session
         // (output/search/attach). We do NOT write it into the fresh terminal — a reopened shell
@@ -836,6 +966,7 @@ export class SessionManager {
     // Garbage-collect history files for sessions that no longer exist (e.g. ones that had exited).
     const live = new Set(this.sessions.keys());
     for (const id of listSessionHistoryIds()) if (!live.has(id)) clearSessionHistory(id);
+    this._pruneGroupAssignments(); // drop assignments to groups deleted while the daemon was off
     this._persistManifest();
   }
 
