@@ -149,6 +149,11 @@
 
       <section>
         <h2>Install</h2>
+        <p style="color: var(--muted); max-width: 720px">
+          Two commands, about 30 seconds: <code>cordless setup</code> installs + starts the daemon, then
+          <code>cordless</code> shows a QR you scan with the phone. Here's the whole thing:
+        </p>
+        <a href="./assets/install/install.gif"><img src="./assets/install/install.gif" alt="cordless install: cordless setup, then cordless shows a pairing QR" style="width:100%; border:1px solid var(--line); border-radius:12px; margin:6px 0 10px; box-shadow:0 16px 50px rgba(0,0,0,.5)" /></a>
         <h3>1 · Install cordless on your dev box / laptop</h3>
         <p style="color: var(--muted)">
           Download the self-contained <strong>cordless CLI</strong> from
@@ -163,14 +168,16 @@ macOS     use the desktop app, or build from source (CLI binary coming)</pre>
         <pre>cordless setup      # installs cordless to a stable path, adds it to PATH + autostart, and STARTS the daemon
 cordless            # opens the dashboard: daemon status + a pairing QR + your sessions
 cordless install    # (alternative) just register the daemon to run at login</pre>
-        <p style="color: var(--muted); font-size: 14px"><code>cordless setup</code> is the whole installer: after it, the daemon is already running — open a <strong>new</strong> terminal and run <code>cordless</code> to see the pairing QR.</p>
+        <p style="color: var(--muted); font-size: 14px"><code>cordless setup</code> is the whole installer: it copies the binary to a stable location, adds it to your <code>PATH</code>, registers autostart, <strong>cleans up any older install</strong>, and starts the daemon. Open a <strong>new</strong> terminal and run <code>cordless</code>.</p>
+        <img src="./assets/install/install-setup.png" alt="cordless setup output: copied binary, added to PATH, registered autostart, started the daemon" style="width:100%; border:1px solid var(--line); border-radius:12px; margin:8px 0 4px" />
         <h3>2 · Pair your phone</h3>
         <p style="color: var(--muted)">
-          The dashboard's starting screen shows a <strong>QR</strong>. Install the
+          <code>cordless</code>'s starting screen shows a <strong>QR</strong>. Install the
           <a href="https://github.com/naveenneog/cordless/releases/latest">Android app</a>, tap
           <strong>Scan QR</strong>, and scan it. (Or press <code>p</code> for a fresh code, run
           <code>cordless pair</code>, or open the printed URL in your phone's browser as a PWA.)
         </p>
+        <img src="./assets/install/install-qr.png" alt="cordless dashboard with a pairing QR to scan with the phone app" style="width:100%; border:1px solid var(--line); border-radius:12px; margin:8px 0 4px" />
         <h3>3 · From anywhere</h3>
         <p style="color: var(--muted)">
           Put the dev box <em>and</em> phone on the same <a href="https://tailscale.com">Tailscale</a> tailnet
