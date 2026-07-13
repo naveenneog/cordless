@@ -20,6 +20,8 @@ Get-ChildItem -Path (Join-Path $toolsDir 'resources') -Recurse -Filter '*.exe' -
 Write-Host ''
 Write-Host 'cordless is installed. Start it and pair your phone:' -ForegroundColor Green
 Write-Host '    cordless           # opens the dashboard with a pairing QR'
+Write-Host '    cordless start     # start the daemon in the background'
 Write-Host '    cordless install   # (optional) start the daemon automatically at login'
+Write-Host '    cordless help      # full command reference'
 Write-Host ''
 Write-Host 'Docs: https://naveenneog.github.io/cordless/'
