@@ -3,7 +3,48 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
-## v0.7.1 — packaged-binary fixes + self-installer (current)
+## v0.8.0 — history, custom launchers, groups (current)
+
+Six-branch v0.8 program designed with Sol, each feature on its own branch merged `--no-ff`. Harness
+is **23/23** (`npm --prefix agent test`). Shipped:
+
+1. **Persisted history** (`feature/persisted-history`): capped, normalized plain-text scrollback per
+   session at `~/.cordless/history/<id>.json.gz` (gzip, user-only, atomic), saved on a periodic ~3s
+   manager sweep (survives reboot / Windows hard-kill, not just clean shutdown) + a shutdown flush.
+   On restore it's shown as **frozen context above** the reopened session (output/search/attach
+   snapshot) + a "session reopened after system restart" banner — NOT written into the fresh terminal
+   (a reopened shell clears its screen and would wipe it). Chains across restarts; GC'd on kill/exit +
+   orphan cleanup. `cordless history [status|clear] [id] [--all]`; config `history.{persist,maxLines,
+   maxBytes}`. Files: `state.js` (gz helpers), `sessions.js` (`_captureHistoryRecord`/`_liveLines`/
+   `seedRestoredHistory`/`_restoredHistoryText`, `flushHistoryIfDirty`), `history.mjs` (phase D).
+2. **Custom launchers** (`feature/custom-profiles`, `agent/src/profiles.js`): user profiles in
+   `config.json` merge with built-ins (user wins). Direct-spawn `{command,args?,cwd?,env?,title?,
+   attentionPreset?}` (resolved via the daemon PATH/PATHEXT — node-pty needs the full path) or legacy
+   shell `{initCommand}`. Validated (name `^[A-Za-z0-9][\w.-]{0,31}$`, exe not a shell string, args<=64,
+   string env); missing exe = marked unavailable (never crashes), launch fails clearly. Remote clients
+   select by NAME only. `cordless profiles [show <name>]`; dashboard `n` numbers all, dims unavailable.
+3. **Copilot profile** (`feature/copilot-profile`): built-in `copilot {command:"copilot",
+   attentionPreset:"agent"}` (unavailable until installed). Agent attention is now preset-driven —
+   `_isAgent()` = attentionPreset "agent" OR claude/codex — so copilot + custom agents get the shared
+   waiting/finished heuristics. Also fixed profile source labelling (built-in vs real override).
+4. **Rename tabs** (`feature/session-rename`): `session.rename {sessionId,title}` -> broadcast
+   `session.updated {sessionId,revision,changes}` (monotonic metaRevision/titleRevision, last-write-
+   wins). NFC/trim/control-strip, cap 80 code points / 256 bytes, empty resets to default; persisted in
+   the manifest. `cordless rename <id> <title>`; dashboard `e` inline editor.
+5. **Session groups** (`feature/session-groups`): Chrome-mobile-style tab groups. `groups.json` map
+   {id,name,color,order,revision} + groupId/groupOrder on sessions (in the manifest; pruned on
+   startup). WS: group.list/create/rename/color/reorder/delete/assign, broadcast groups.updated /
+   session.updated; delete never kills sessions. `cordless group <list|new|rename|color|delete|
+   assign>`. Dashboard renders collapsible ▼/▶ group headers + Ungrouped + per-group waiting counts;
+   `g` group menu (new/assign/ungroup/collapse/rename/delete), `f` cycles the smart-view filter
+   (All|Attention|Claude|Codex|Copilot|Shell — views, not groups; collapse state is client-local).
+   Shared `visibleSessions()`/`groupedRows()` in `render.js` keep the dashboard + renderer in sync.
+
+Remaining: **6. `feature/group-ui-phone`** (phone chips + grouped card sections — the web client under
+`client/`). Later one-shot: `cordless group by-repo`. Deferred: nested groups, shared panes,
+drag-reorder everywhere, continuous auto-grouping.
+
+## v0.7.1 — packaged-binary fixes + self-installer
 
 Fixes for the real downloaded-binary experience, each on its own branch merged `--no-ff`:
 
