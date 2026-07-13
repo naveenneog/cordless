@@ -3,7 +3,64 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
-## v0.7 — attention state + coder features (current)
+## v0.7.1 — packaged-binary fixes + self-installer (current)
+
+Fixes for the real downloaded-binary experience, each on its own branch merged `--no-ff`:
+
+- **Seamless resume** (`fix/seamless-resume`): the dashboard's 1s refresh `setInterval` called
+  `render()` during an attach (it only checked `mode`, not whether the dashboard screen was active),
+  repainting the dashboard over the attached PTY — so resuming a session looked broken. Guard the
+  timer with `!state.interactive` (false between `leave()`/`enter()` during attach). Added
+  `cordless resume` / `cordless attach` (no-arg) = jump into the most-recently-active running session.
+- **`cordless setup` self-installer** (`feat/cli-setup`, `agent/src/cli/setup.js`): copies the binary
+  to a stable dir (`%LOCALAPPDATA%\Programs\cordless`), adds it to the User PATH idempotently, and
+  registers autostart. Flags `--dir --no-path --no-autostart --path-only --dry-run --uninstall
+  --purge --copy-only`. The SEA build also drops a double-click `Install cordless.cmd`. (NSIS
+  `cordless-Setup.exe` in CI still TODO — it will just extract + call `cordless setup --path-only`.)
+- **Version-skew "invalid message" fix** (already in v0.7.0 tail, `034a783`): `ensureDaemon()` now
+  replaces a stale/older daemon on :7443 instead of talking to it.
+- **Test robustness**: `output.mjs`, `pty_smoke.mjs`, `attention_live/prompt` wait for the shell
+  prompt then poll instead of fixed sleeps (slow PowerShell startup dropped early input).
+- **Resume regression test (phase C, `resume_dash.mjs`)**: drives the real path through a node-pty —
+  open dashboard → Enter to attach → type into the live session while the refresh timer keeps
+  ticking → assert the unique `enter attach` footer never reappears over the session → detach →
+  dashboard returns. Harness is **18/18**.
+
+### v0.8 roadmap (designed with Sol; branch order)
+
+Ship in this order, groups trigger the `0.8.0` tag:
+
+1. `feature/persisted-history` — persist a capped (2000 lines / 512KB, first-limit-wins) **normalized
+   text** scrollback per session to `~/.cordless/history/<id>.json.gz` (strip escapes; debounced
+   5–10s writes + clean-shutdown flush; atomic temp+rename; user-only perms). On restore, replay the
+   text then `── cordless: session reopened after system restart ──` before the fresh PTY. Add
+   `cordless history clear [session]`. Config `history.{persist,maxLines,maxBytes}`.
+2. `feature/custom-profiles` — user profiles in `config.json` under `profiles`; `effective =
+   {...builtIns, ...config.profiles}` (user overrides win). Schema `{command, args?, cwd?, env?,
+   title?, attentionPreset?:"shell"|"agent"|"none", restore?}`. Name `^[a-zA-Z0-9][\w.-]{0,31}$`;
+   `command` is an exe/abs-path (NOT a shell string) spawned directly via node-pty; resolve via the
+   **daemon** PATH (+ Windows `PATHEXT`). Don't reject config if an exe is missing — mark unavailable.
+   `cordless profiles [show <name>]`; dashboard `n` lists all, dims unavailable with reason. Remote
+   clients may select a profile but never submit arbitrary argv; no remote profile edits.
+3. `feature/copilot-profile` — built-in `copilot` profile `{command:"copilot", attentionPreset:
+   "agent"}`, visible-but-unavailable when absent (verify `copilot --version`; NOT `gh copilot`).
+   Shared `agent` heuristics + BEL; add Copilot-specific patterns only from recorded PTY fixtures;
+   watch alternate-screen use.
+4. `feature/session-rename` — `session.rename {sessionId,title}` → broadcast `session.updated
+   {sessionId, revision, changes:{title}}`. NFC-normalize, trim, ≤80 code points / 256 bytes, reject
+   NUL/C0/C1/newline/ESC/bidi controls; empty = restore generated default; atomic manifest write;
+   monotonic revisions (clients ignore older); last-write-wins. Dashboard `e` inline editor.
+5. `feature/session-groups` — **manual groups + non-persistent smart views** (no continuous
+   auto-grouping). Server: `groups` map `{id,name,color,order,revision}` + `groupId`/`groupOrder` on
+   each session (collapse state is client-local). Ops `group.create/rename/delete/assign/reorder`;
+   delete → sessions `groupId:null` (never kills). TUI: collapsible group header rows (+`g`), keep
+   `e` for rename; top smart filters `All|Attention|Claude|Codex|Copilot|Shell` (views, not groups).
+6. `feature/group-ui-phone` — phone chips (`All`, `Attention`, named groups) + grouped card sections
+   (not 10 live terminals); tap opens, long-press rename/move/mute/kill; badge counts.
+
+Later one-shot: `cordless group by-repo`. Deferred: nested groups, shared panes, drag-reorder everywhere.
+
+## v0.7 — attention state + coder features
 
 Built on the v0.6 CLI-first base. The differentiator for juggling many coding-agent sessions:
 
