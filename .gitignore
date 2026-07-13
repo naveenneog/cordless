@@ -34,6 +34,7 @@ emu-*.png
 
 # keep docs images for the Pages landing page
 !docs/*.png
+!docs/assets/**/*.png
 
 # keep app icons/logos that the web build, Electron app and logo pipeline need
 !client/public/*.png
