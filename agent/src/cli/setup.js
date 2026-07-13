@@ -18,6 +18,56 @@ export function defaultInstallDir() {
   return path.join(os.homedir(), ".local", "share", "cordless");
 }
 
+// Where we record the current install so a later `cordless setup` can clean up the previous one.
+function cordlessHomeDir() {
+  return process.env.CORDLESS_HOME || path.join(os.homedir(), ".cordless");
+}
+function installMarkerFile() {
+  return path.join(cordlessHomeDir(), "install.json");
+}
+export function loadInstallMarker() {
+  try {
+    return JSON.parse(fs.readFileSync(installMarkerFile(), "utf8"));
+  } catch {
+    return null;
+  }
+}
+export function saveInstallMarker(dir) {
+  try {
+    fs.mkdirSync(cordlessHomeDir(), { recursive: true });
+    fs.writeFileSync(installMarkerFile(), JSON.stringify({ dir, version: VERSION, installedAt: new Date().toISOString() }, null, 2));
+  } catch {
+    /* ignore */
+  }
+}
+
+// The previously-installed dirs that differ from `newDir` and are safe to remove (a cordless install
+// dir is always named "cordless"). Pure so it can be unit-tested.
+export function oldInstallDirs(marker, newDir) {
+  const olds = new Set();
+  if (marker && marker.dir) olds.add(marker.dir);
+  for (const d of (marker && marker.previousDirs) || []) olds.add(d);
+  return [...olds].filter(
+    (d) => d && path.resolve(d) !== path.resolve(newDir) && path.basename(d).toLowerCase() === "cordless"
+  );
+}
+
+// Remove previous cordless installs (their dir + stale User-PATH entry) that aren't the new location.
+// Never touches ~/.cordless (config/tokens are kept); only ever deletes a directory named "cordless".
+export function cleanupOldInstalls(newDir, { log = () => {} } = {}) {
+  const dirs = oldInstallDirs(loadInstallMarker(), newDir);
+  for (const old of dirs) {
+    removeFromUserPath(old);
+    try {
+      fs.rmSync(old, { recursive: true, force: true });
+      log("  removed old install: " + old);
+    } catch {
+      /* ignore */
+    }
+  }
+  return dirs;
+}
+
 // The PowerShell command that idempotently adds/removes a directory on the *user* PATH and broadcasts
 // the change. Returned (not run) so it can be unit-tested.
 export function winUserPathScript(dir, { remove = false } = {}) {
@@ -104,6 +154,7 @@ export function runSetup(opts = {}) {
         console.error("  could not start the daemon now: " + (e.message || e) + " (it will start at next login)");
       }
     }
+    saveInstallMarker(dir); // record this install so a future setup can clean it up
     console.log(`\ncordless ${VERSION} is installed and running. Open a NEW terminal and run:  cordless`);
     console.log(`(that opens the dashboard with a QR to pair your phone.)\n`);
     return;
@@ -130,6 +181,12 @@ export function runSetup(opts = {}) {
   } catch {
     /* ignore */
   }
+  // Clean up a previous install in a different location (dir + stale PATH entry) before copying.
+  try {
+    cleanupOldInstalls(dir, { log: console.log });
+  } catch {
+    /* ignore */
+  }
   const destExe = copyApp(dir);
   console.log("  copied binary + resources");
 
@@ -144,7 +201,8 @@ export function runSetup(opts = {}) {
 }
 
 function runUninstall(opts = {}) {
-  const dir = opts.dir || defaultInstallDir();
+  const marker = loadInstallMarker();
+  const dir = opts.dir || (marker && marker.dir) || defaultInstallDir();
   try {
     stopDaemon();
   } catch {
@@ -164,6 +222,11 @@ function runUninstall(opts = {}) {
     } catch {
       /* ignore */
     }
+  }
+  try {
+    fs.rmSync(installMarkerFile(), { force: true });
+  } catch {
+    /* ignore */
   }
   console.log("(Your ~/.cordless config + paired devices are kept.)");
 }
