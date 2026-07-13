@@ -16,7 +16,7 @@ import pty from "./pty-loader.js";
 import xtermHeadless from "@xterm/headless";
 import addonSerialize from "@xterm/addon-serialize";
 import { out } from "./protocol.js";
-import { loadSessionManifest, saveSessionManifest } from "./state.js";
+import { loadSessionManifest, saveSessionManifest, saveSessionHistory, loadSessionHistory, clearSessionHistory, listSessionHistoryIds } from "./state.js";
 import {
   THRESHOLDS,
   hasBell,
@@ -100,6 +100,9 @@ class Session {
     this._pending = [];
     this._pendingBytes = 0;
     this._flushTimer = null;
+    this._historyDirty = false; // has output arrived since the last persisted-history write?
+    this._historySavedAt = 0;
+    this._restoredHistory = null; // frozen plain-text scrollback from before a restart (shown above live)
 
     // terminal op queue (serializes writes + snapshots)
     this._ops = Promise.resolve();
@@ -180,6 +183,7 @@ class Session {
             this._pushRing(seq, batch);
             this._broadcast(seq, batch);
             this._noteOutput(batch); // update attention state after the term buffer reflects the batch
+            this._historyDirty = true; // periodic manager flush will persist the scrollback
             resolve();
           });
         })
@@ -332,11 +336,19 @@ class Session {
         }
         sub.mode = "incremental";
       } else if (latestSeq >= 0) {
-        const snap = Buffer.from(this._serialize.serialize(), "utf8");
+        // Prepend the restored (pre-restart) scrollback above the live screen so a reopened session
+        // shows its history on attach. It rides inside the single reset frame (a second reset would
+        // wipe it), then the serialized live screen follows.
+        const snap = Buffer.from(this._restoredHistoryText() + this._serialize.serialize(), "utf8");
         sub.deliver(
           out.output(this.id, latestSeq, snap.toString("base64"), { replay: true, reset: true }),
           snap.length
         );
+        sub.mode = "reset";
+      } else if (this._restoredHistory && this._restoredHistory.length) {
+        // Restored but the fresh PTY hasn't emitted output yet — still show the history.
+        const snap = Buffer.from(this._restoredHistoryText(), "utf8");
+        sub.deliver(out.output(this.id, 0, snap.toString("base64"), { replay: true, reset: true }), snap.length);
         sub.mode = "reset";
       } else {
         sub.mode = "fresh";
@@ -416,6 +428,10 @@ class Session {
     this.exitCode = exitCode ?? null;
     this.signal = signal ?? null;
     this.activity = "exited";
+    // An exited session is never reopened on the next daemon start, so its persisted history is moot;
+    // drop the on-disk file (the live term buffer is still readable via `output` while it's listed).
+    this._historyDirty = false;
+    clearSessionHistory(this.id);
     // An agent session that did real work and then exited is "finished"; a bare shell exit is not.
     if ((this.profile === "claude" || this.profile === "codex") && this._hadMeaningfulActivity) {
       this.attention = "finished";
@@ -479,28 +495,104 @@ class Session {
     return lines;
   }
 
-  // Last `n` non-empty logical lines as a single string. Drained through the op queue for accuracy.
+  // Live buffer as plain lines with control chars stripped and trailing blank lines removed.
+  _liveLines() {
+    let lines = this._bufferLines().map((l) => l.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, ""));
+    let end = lines.length;
+    while (end > 0 && !lines[end - 1].trim()) end--;
+    return lines.slice(0, end);
+  }
+
+  _restoredBanner() {
+    return "\u2500\u2500 cordless: session reopened after system restart \u2500\u2500";
+  }
+
+  // Restored (pre-restart) history shown above the live output, as one string, or "".
+  _restoredHistoryText() {
+    if (!this._restoredHistory || !this._restoredHistory.length) return "";
+    return this._restoredHistory.join("\r\n") + "\r\n\x1b[2m" + this._restoredBanner() + "\x1b[0m\r\n";
+  }
+
+  // Last `n` non-empty logical lines as a single string (restored history counts as the oldest lines,
+  // so a reopened session's `output` shows what it was doing before the restart). Drained via the queue.
   readTail(n = 50) {
     return this._queueOp(() => {
-      const lines = this._bufferLines();
-      let end = lines.length;
-      while (end > 0 && !lines[end - 1].trim()) end--;
-      return lines.slice(Math.max(0, end - n), end).join("\n");
+      let lines = this._liveLines();
+      if (this._restoredHistory && this._restoredHistory.length) {
+        lines = [...this._restoredHistory, this._restoredBanner(), ...lines];
+      }
+      return lines.slice(Math.max(0, lines.length - n)).join("\n");
     });
   }
 
-  // Case-insensitive substring search over the retained buffer. Returns [{ line, text }].
+  // Case-insensitive substring search over restored history + the retained buffer. Returns [{ line, text }].
   readSearch(query, limit = 200) {
     return this._queueOp(() => {
       if (!query) return [];
       const q = String(query).toLowerCase();
-      const lines = this._bufferLines();
+      const restored = this._restoredHistory && this._restoredHistory.length ? [...this._restoredHistory, this._restoredBanner()] : [];
+      const lines = [...restored, ...this._liveLines()];
       const matches = [];
       for (let y = 0; y < lines.length && matches.length < limit; y++) {
         if (lines[y].toLowerCase().includes(q)) matches.push({ line: y, text: lines[y].slice(0, 200) });
       }
       return matches;
     });
+  }
+
+  // ---- persisted history (normalized plain-text scrollback, survives a daemon restart) ----
+
+  _historyCfg() {
+    return this.mgr.cfg.history || {};
+  }
+
+  // Cap lines to maxLines / maxBytes, keeping the newest (whichever limit hits first).
+  _capHistoryLines(lines) {
+    const h = this._historyCfg();
+    const maxLines = h.maxLines || 2000;
+    const maxBytes = h.maxBytes || 512 * 1024;
+    lines = lines.slice(Math.max(0, lines.length - maxLines)).map((l) => l.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, ""));
+    let bytes = lines.reduce((n, l) => n + Buffer.byteLength(l, "utf8") + 1, 0);
+    while (lines.length && bytes > maxBytes) {
+      bytes -= Buffer.byteLength(lines.shift(), "utf8") + 1;
+    }
+    return lines;
+  }
+
+  // The record we persist: restored (pre-restart) history followed by the current live buffer, capped.
+  // Merging means history chains across multiple restarts instead of being lost on the second one.
+  _captureHistoryRecord() {
+    const merged = this._capHistoryLines([...(this._restoredHistory || []), ...this._liveLines()]);
+    return { version: 1, sessionId: this.id, generation: this.generation, capturedAt: new Date().toISOString(), lines: merged };
+  }
+
+  // Persist the scrollback if it changed since the last write. Called on a periodic manager sweep
+  // (every few seconds) so history survives a hard kill / reboot — not just a clean shutdown — while
+  // staying bounded to at most one write per session per sweep.
+  flushHistoryIfDirty() {
+    if (this._historyCfg().persist === false) return;
+    if (!this._historyDirty) return;
+    this._saveHistoryNow();
+  }
+
+  _saveHistoryNow() {
+    if (this._historyCfg().persist === false) return;
+    try {
+      saveSessionHistory(this.id, this._captureHistoryRecord());
+      this._historyDirty = false;
+      this._historySavedAt = Date.now();
+    } catch (err) {
+      console.error(`[session ${this.id}] history save failed`, err?.message || err);
+    }
+  }
+
+  // On restore, keep the previous plain-text scrollback as frozen context shown *above* the live
+  // session (in `output`/`search` and the attach snapshot). We deliberately do NOT write it into the
+  // fresh terminal, because a reopened shell (e.g. PowerShell) clears the screen on startup and would
+  // wipe it. `_restoredHistory` also chains forward via `_captureHistoryRecord`.
+  seedRestoredHistory(record) {
+    if (!record || !Array.isArray(record.lines) || !record.lines.length) return;
+    this._restoredHistory = this._capHistoryLines(record.lines.map((l) => String(l)));
   }
 }
 
@@ -518,9 +610,17 @@ export class SessionManager {
   startEventLoop(onEvent) {
     this._onEvent = onEvent;
     if (this._attTimer) clearInterval(this._attTimer);
+    let ticks = 0;
     this._attTimer = setInterval(() => {
       for (const s of this.sessions.values()) {
         if (s.state === "running") s.evaluateQuiet();
+      }
+      // Every ~3s, persist any session whose scrollback changed, so history survives a reboot / hard
+      // kill (not just a clean shutdown). Bounded to one write per session per sweep.
+      if (++ticks % 3 === 0) {
+        for (const s of this.sessions.values()) {
+          if (s.state === "running") s.flushHistoryIfDirty();
+        }
       }
     }, 1000);
     this._attTimer.unref?.();
@@ -559,6 +659,29 @@ export class SessionManager {
     return this.sessions.get(id);
   }
 
+  // ---- persisted-history admin (used by the `history.clear` / `history.list` ops) ----
+  // Clear on-disk history. With an id, clear just that one; otherwise clear every persisted file.
+  // Cancels any pending debounced save so a live session doesn't immediately re-write it.
+  clearHistory(sessionId) {
+    if (sessionId) {
+      const s = this.sessions.get(sessionId);
+      if (s) s._historyDirty = false; // don't let the periodic sweep immediately re-write it
+      return clearSessionHistory(sessionId) ? 1 : 0;
+    }
+    for (const s of this.sessions.values()) s._historyDirty = false;
+    let n = 0;
+    for (const id of listSessionHistoryIds()) if (clearSessionHistory(id)) n++;
+    return n;
+  }
+
+  // Ids that currently have a persisted history file, annotated with whether the session is live.
+  historyStatus() {
+    return listSessionHistoryIds().map((id) => {
+      const s = this.sessions.get(id);
+      return { sessionId: id, live: !!s, title: s?.title || null, state: s?.state || "gone" };
+    });
+  }
+
   create({ profile, cwd, cols, rows, title }) {
     const running = [...this.sessions.values()].filter((s) => s.state === "running").length;
     if (running >= this.cfg.maxSessions) {
@@ -581,6 +704,7 @@ export class SessionManager {
 
   _remove(id) {
     this.sessions.delete(id);
+    clearSessionHistory(id); // a permanently-killed session keeps no persisted history
     this._persistManifest();
   }
 
@@ -609,6 +733,7 @@ export class SessionManager {
       /* ignore */
     }
     let n = 0;
+    const persistHistory = (this.cfg.history || {}).persist !== false;
     for (const e of manifest) {
       if (!e || !this.cfg.profiles[e.profile]) continue;
       if (this.sessions.size >= this.cfg.maxSessions) break;
@@ -622,6 +747,17 @@ export class SessionManager {
           rows: e.rows || 30,
           title: e.title,
         });
+        // Keep the previous plain-text scrollback as frozen context shown above the reopened session
+        // (output/search/attach). We do NOT write it into the fresh terminal — a reopened shell
+        // clears its screen on startup and would wipe it.
+        if (persistHistory) {
+          try {
+            const hist = loadSessionHistory(e.sessionId);
+            if (hist) s.seedRestoredHistory(hist);
+          } catch {
+            /* ignore a corrupt history file */
+          }
+        }
         this.sessions.set(s.id, s);
         n++;
       } catch (err) {
@@ -629,6 +765,9 @@ export class SessionManager {
       }
     }
     if (n) console.log(`  restored ${n} session(s) from last run`);
+    // Garbage-collect history files for sessions that no longer exist (e.g. ones that had exited).
+    const live = new Set(this.sessions.keys());
+    for (const id of listSessionHistoryIds()) if (!live.has(id)) clearSessionHistory(id);
     this._persistManifest();
   }
 
@@ -636,7 +775,10 @@ export class SessionManager {
     this.stopEventLoop();
     for (const s of this.sessions.values()) {
       try {
-        if (s.state === "running") s.pty.kill();
+        if (s.state === "running") {
+          s._saveHistoryNow(); // final synchronous capture so a reopen shows the latest output
+          s.pty.kill();
+        }
       } catch {
         /* ignore */
       }

@@ -200,6 +200,12 @@ export class DaemonClient {
   search(sessionId, query, limit = 200) {
     return this._rpc("session.search", { sessionId, query, limit }).then((m) => m.matches || []);
   }
+  historyClear(sessionId) {
+    return this._rpc("history.clear", sessionId ? { sessionId } : {}).then((m) => m.cleared || 0);
+  }
+  historyList() {
+    return this._rpc("history.list").then((m) => m.items || []);
+  }
 
   close() {
     try {

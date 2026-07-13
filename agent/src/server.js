@@ -546,6 +546,26 @@ export async function runServer() {
         safeSend(ws, out.result("pairing.cancel.result", m.requestId, {}));
         break;
       }
+
+      case "history.clear": {
+        // Deleting on-disk history is a local privilege — only from this computer.
+        if (!(conn.device?.scope === "loopback" && isLoopback(conn.ip))) {
+          safeSend(ws, out.error("history.clear.result", m.requestId, "forbidden", "history can only be cleared from this computer"));
+          break;
+        }
+        const cleared = mgr.clearHistory(m.sessionId);
+        safeSend(ws, out.historyClearResult(m.requestId, cleared));
+        break;
+      }
+
+      case "history.list": {
+        if (!(conn.device?.scope === "loopback" && isLoopback(conn.ip))) {
+          safeSend(ws, out.error("history.list.result", m.requestId, "forbidden", "not allowed"));
+          break;
+        }
+        safeSend(ws, out.historyList(m.requestId, mgr.historyStatus()));
+        break;
+      }
     }
   }
 

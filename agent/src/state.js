@@ -3,6 +3,7 @@
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
+import zlib from "node:zlib";
 import crypto from "node:crypto";
 
 export const HOME = process.env.CORDLESS_HOME || path.join(os.homedir(), ".cordless");
@@ -13,6 +14,7 @@ const P = {
   pending: path.join(HOME, "pending-pairs.json"),
   sessions: path.join(HOME, "sessions.json"),
   workspaces: path.join(HOME, "workspaces.json"),
+  history: path.join(HOME, "history"),
 };
 
 export function ensureHome() {
@@ -53,6 +55,13 @@ const DEFAULT_CONFIG = {
   scrollback: 10000,
   // Reopen the sessions that were running when the daemon last stopped (fresh shells, same dirs).
   restoreSessions: true,
+  // Persist a capped, normalized (plain-text, no escapes) scrollback per session so that after a
+  // daemon restart / reboot a reopened session shows its previous output. See agent/src/sessions.js.
+  history: {
+    persist: true,
+    maxLines: 2000,
+    maxBytes: 512 * 1024, // whichever limit is hit first
+  },
   // WebSocket/pairing Origin allowlist (same-origin + localhost are always allowed).
   // Add your Capacitor app origin here if you package the APK, e.g. "http://localhost".
   allowedOrigins: ["capacitor://localhost", "http://localhost", "https://localhost", "ionic://localhost"],
@@ -87,6 +96,7 @@ export function loadConfig() {
     ...c,
     profiles: { ...DEFAULT_CONFIG.profiles, ...(c.profiles || {}) },
     notifications: { ...DEFAULT_CONFIG.notifications, ...(c.notifications || {}) },
+    history: { ...DEFAULT_CONFIG.history, ...(c.history || {}) },
   };
 }
 
@@ -189,6 +199,57 @@ export function loadSessionManifest() {
 }
 export function saveSessionManifest(list) {
   writeJSON(P.sessions, list);
+}
+
+// ---- Per-session persisted history (normalized plain-text scrollback, gzipped) ----
+// Files live under ~/.cordless/history/<sessionId>.json.gz. They may contain secrets, so they are
+// written user-only (0o600) into a 0o700 dir. A record is { version, sessionId, generation,
+// capturedAt, lines: string[] }.
+function historyFile(sessionId) {
+  return path.join(P.history, `${sessionId}.json.gz`);
+}
+function ensureHistoryDir() {
+  fs.mkdirSync(P.history, { recursive: true });
+  try {
+    fs.chmodSync(P.history, 0o700);
+  } catch {
+    /* best-effort on Windows */
+  }
+}
+export function saveSessionHistory(sessionId, record) {
+  ensureHistoryDir();
+  const file = historyFile(sessionId);
+  const tmp = `${file}.tmp-${process.pid}`;
+  const gz = zlib.gzipSync(Buffer.from(JSON.stringify(record), "utf8"));
+  fs.writeFileSync(tmp, gz, { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
+export function loadSessionHistory(sessionId) {
+  try {
+    const gz = fs.readFileSync(historyFile(sessionId));
+    return JSON.parse(zlib.gunzipSync(gz).toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+export function clearSessionHistory(sessionId) {
+  try {
+    fs.rmSync(historyFile(sessionId), { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+// All session ids that currently have a persisted history file.
+export function listSessionHistoryIds() {
+  try {
+    return fs
+      .readdirSync(P.history)
+      .filter((f) => f.endsWith(".json.gz"))
+      .map((f) => f.slice(0, -".json.gz".length));
+  } catch {
+    return [];
+  }
 }
 
 // ---- Workspaces (named session templates) ----

@@ -168,6 +168,27 @@ async function main() {
     }
   }
 
+  // Phase D: persisted history survives a daemon restart (marker saved on shutdown, injected on restore)
+  console.log("== phase D: persisted history across restart ==");
+  {
+    const home = freshHome();
+    let d = startDaemon(home);
+    if (!(await waitHealthy())) { record("phaseD:daemon-start", false); await stopDaemon(d); }
+    else {
+      const create = await runTest("history.mjs", home, ["create"]);
+      record("history:create", create.code === 0);
+      await stopDaemon(d);
+      await sleep(500);
+      d = startDaemon(home);
+      if (!(await waitHealthy())) { record("phaseD:daemon-restart", false); }
+      else {
+        const check = await runTest("history.mjs", home, ["check"]);
+        record("history:check", check.code === 0 && /HISTORY PASS/.test(check.out));
+      }
+      await stopDaemon(d);
+    }
+  }
+
   const failed = results.filter((r) => !r.ok);
   console.log("\n================ SUMMARY ================");
   for (const r of results) console.log(`  ${r.ok ? "ok  " : "FAIL"}  ${r.name}${r.note ? "  " + r.note : ""}`);

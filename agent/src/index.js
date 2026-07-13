@@ -30,6 +30,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless search <id> <query>   search a session's retained scrollback
   cordless kill <id>             stop a session
   cordless workspace <save|open|list|delete> [name]   named session templates
+  cordless history [status|clear] [id] [--all]   persisted scrollback (survives restart)
 
   cordless install               start the daemon automatically at login
   cordless setup [--uninstall]   install cordless to a stable path + PATH + autostart (or remove)
@@ -136,6 +137,12 @@ async function main() {
     case "ws": {
       const { runWorkspace } = await import("./cli/commands.js");
       await runWorkspace(args[0], args[1]);
+      break;
+    }
+    case "history": {
+      const { runHistory } = await import("./cli/commands.js");
+      const positionals = args.filter((a) => !a.startsWith("-"));
+      await runHistory(positionals[0], positionals[1], { all: args.includes("--all") });
       break;
     }
     case "install":

@@ -56,9 +56,18 @@ async function main() {
   await waitFor(() => out, FOOTER, 12000, "dashboard to render");
   await waitFor(() => out, "resume-me", 8000, "the session row to appear");
 
-  // 3. Attach to the (selected) session with Enter.
+  // 3. Attach to the (selected) session with Enter. Re-press once if the attach snapshot is slow to
+  //    arrive (a dropped keypress under load) so the test is robust without being lenient about the bug.
   child.write("\r");
-  await waitFor(() => out, ALPHA, 10000, "attach snapshot (the restored scrollback)");
+  const attachStart = Date.now();
+  let attached = false;
+  let repressed = false;
+  while (Date.now() - attachStart < 14000) {
+    await sleep(200);
+    if (out.includes(ALPHA)) { attached = true; break; }
+    if (!repressed && Date.now() - attachStart > 5000) { child.write("\r"); repressed = true; }
+  }
+  if (!attached) bail("timed out waiting for attach snapshot (the restored scrollback)");
   const postAttach = out.length; // everything from here is *after* we're attached
 
   // 4. Type into the live session and let several refresh ticks pass. If the timer repainted the

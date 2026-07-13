@@ -105,6 +105,16 @@ const SessionSearch = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
 });
 
+// Clear persisted (on-disk) session history. No sessionId = clear all. Loopback-scoped (server-enforced).
+const HistoryClear = z.object({
+  type: z.literal("history.clear"),
+  requestId,
+  sessionId: sessionId.optional(),
+});
+
+// List which sessions have persisted history on disk. Loopback-scoped (server-enforced).
+const HistoryList = z.object({ type: z.literal("history.list"), requestId });
+
 export const ClientMessage = z.discriminatedUnion("type", [
   Hello,
   SessionList,
@@ -120,6 +130,8 @@ export const ClientMessage = z.discriminatedUnion("type", [
   SessionAttentionClear,
   SessionTail,
   SessionSearch,
+  HistoryClear,
+  HistoryList,
 ]);
 
 // ---- Outgoing frame builders ----
@@ -173,6 +185,8 @@ export const out = {
   }),
   sessionTail: (requestId, sessionId, text) => ({ type: "session.tail.result", requestId, ok: true, sessionId, text }),
   sessionSearch: (requestId, sessionId, matches) => ({ type: "session.search.result", requestId, ok: true, sessionId, matches }),
+  historyClearResult: (requestId, cleared) => ({ type: "history.clear.result", requestId, ok: true, cleared }),
+  historyList: (requestId, items) => ({ type: "history.list.result", requestId, ok: true, items }),
   pairingCreateResult: (requestId, { pairingId, urls, preferredUrl, code, route, expiresAt }) => ({
     type: "pairing.create.result",
     requestId,
