@@ -79,6 +79,7 @@ class Session {
     this.id = id || crypto.randomUUID();
     this.generation = crypto.randomUUID();
     this.profile = profile;
+    this.attentionPreset = (profileCfg && profileCfg.attentionPreset) || null;
     this.cwd = validCwd(cwd);
     this.cols = cols;
     this.rows = rows;
@@ -198,6 +199,12 @@ class Session {
 
   // ---- attention detection (see attention.js) ----
 
+  // A coding-agent session (claude/codex by name, or any profile with attentionPreset "agent" such as
+  // the built-in copilot). Drives the "finished" heuristic + the finished-on-exit badge.
+  _isAgent() {
+    return this.attentionPreset === "agent" || this.profile === "claude" || this.profile === "codex";
+  }
+
   // Called after each output batch is written to the headless terminal.
   _noteOutput(buf) {
     this._lastOutputAt = Date.now();
@@ -259,7 +266,7 @@ class Session {
       const finishedEnabled = this.mgr.cfg.attentionFinished !== false;
       if (
         finishedEnabled &&
-        (this.profile === "claude" || this.profile === "codex") &&
+        this._isAgent() &&
         this._hadMeaningfulActivity &&
         !this._alternateScreen &&
         Date.now() - this._lastOutputAt >= THRESHOLDS.FINISHED_QUIET_MS
@@ -439,7 +446,7 @@ class Session {
     this._historyDirty = false;
     clearSessionHistory(this.id);
     // An agent session that did real work and then exited is "finished"; a bare shell exit is not.
-    if ((this.profile === "claude" || this.profile === "codex") && this._hadMeaningfulActivity) {
+    if (this._isAgent() && this._hadMeaningfulActivity) {
       this.attention = "finished";
       this.attentionConfidence = "high";
       this.attentionSince = new Date().toISOString();

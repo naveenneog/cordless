@@ -86,6 +86,24 @@ try {
 }
 ok(threw2, "create() throws a clear 'unavailable' error for a missing executable");
 
+// ---- copilot built-in + agent attention preset ----
+const dCop = describeProfiles({ profiles: { copilot: { label: "GitHub Copilot", command: "copilot", attentionPreset: "agent" } } }, process.env);
+ok(dCop[0].kind === "command" && dCop[0].command === "copilot", "copilot is a direct-command profile");
+
+const mgrA = new SessionManager({
+  maxSessions: 20, scrollback: 1000, ringBytesPerSession: 1024 * 1024, restoreSessions: false, history: { persist: false },
+  profiles: {
+    shell: { label: "Shell" },
+    agenty: { command: process.execPath, args: ["-e", "setInterval(()=>{},10000)"], attentionPreset: "agent" },
+  },
+});
+mgrA.create({ profile: "agenty", cwd: process.cwd() });
+mgrA.create({ profile: "shell", cwd: process.cwd() });
+const [agentSess, shellSess] = [...mgrA.sessions.values()];
+ok(agentSess._isAgent() === true, "attentionPreset 'agent' => _isAgent() true");
+ok(shellSess._isAgent() === false, "bare shell => _isAgent() false");
+mgrA.shutdown();
+
 mgr.shutdown();
 await sleep(200);
 console.log(fail === 0 ? "=== PROFILES PASS ===" : "=== PROFILES FAIL ===");
