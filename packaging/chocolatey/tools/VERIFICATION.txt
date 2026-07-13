@@ -6,18 +6,18 @@ official release published by the software author.
 This package downloads the official self-contained cordless CLI from the project's
 GitHub release (same file the project publishes on its website):
 
-  Release:  https://github.com/naveenneog/cordless/releases/tag/v0.8.3
+  Release:  https://github.com/naveenneog/cordless/releases/tag/v0.9.0
   File:     cordless-cli-windows-x64.zip
-  URL:      https://github.com/naveenneog/cordless/releases/download/v0.8.3/cordless-cli-windows-x64.zip
+  URL:      https://github.com/naveenneog/cordless/releases/download/v0.9.0/cordless-cli-windows-x64.zip
 
 The embedded SHA256 checksum (in tools\chocolateyInstall.ps1) is:
 
-  x64:  D49D1693280F7D93B5229BC4D58BCF53C0F120E67580D48C9079FE954DBF1A4D
+  x64:  B8A1D79BDBDBD00621731566B525CEC8259CFD01C0E081E02F971170D9B833D0
 
 To verify yourself:
 
   PowerShell:
-    Invoke-WebRequest -Uri "https://github.com/naveenneog/cordless/releases/download/v0.8.3/cordless-cli-windows-x64.zip" -OutFile cordless.zip
+    Invoke-WebRequest -Uri "https://github.com/naveenneog/cordless/releases/download/v0.9.0/cordless-cli-windows-x64.zip" -OutFile cordless.zip
     Get-FileHash .\cordless.zip -Algorithm SHA256
 
   The hash must equal the value above.

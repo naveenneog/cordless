@@ -1,5 +1,5 @@
 # Refresh the Chocolatey package's version + SHA256 for a given cordless release.
-#   pwsh update-checksum.ps1 -Version 0.8.3
+#   pwsh update-checksum.ps1 -Version 0.9.0
 # Downloads the release zip, hashes it, and rewrites cordless.nuspec + tools\chocolateyInstall.ps1
 # + tools\VERIFICATION.txt in place.
 param(

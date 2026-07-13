@@ -5,8 +5,8 @@ $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $packageArgs = @{
   packageName    = 'cordless'
   unzipLocation  = $toolsDir
-  url64bit       = 'https://github.com/naveenneog/cordless/releases/download/v0.8.3/cordless-cli-windows-x64.zip'
-  checksum64     = 'D49D1693280F7D93B5229BC4D58BCF53C0F120E67580D48C9079FE954DBF1A4D'
+  url64bit       = 'https://github.com/naveenneog/cordless/releases/download/v0.9.0/cordless-cli-windows-x64.zip'
+  checksum64     = 'B8A1D79BDBDBD00621731566B525CEC8259CFD01C0E081E02F971170D9B833D0'
   checksumType64 = 'sha256'
 }
 Install-ChocolateyZipPackage @packageArgs

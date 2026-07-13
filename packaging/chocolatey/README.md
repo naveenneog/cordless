@@ -18,7 +18,7 @@ packaging/chocolatey/
 
 ```powershell
 # 1. refresh version + checksum for the release you're packaging (downloads the zip, hashes it)
-pwsh packaging/chocolatey/update-checksum.ps1 -Version 0.8.3
+pwsh packaging/chocolatey/update-checksum.ps1 -Version 0.9.0
 
 # 2. pack
 choco pack packaging/chocolatey/cordless.nuspec --outputdirectory $env:TEMP\cordless-choco
@@ -27,7 +27,7 @@ choco pack packaging/chocolatey/cordless.nuspec --outputdirectory $env:TEMP\cord
 choco install cordless --source "$env:TEMP\cordless-choco" --yes
 
 # 4. verify
-cordless --version          # -> cordless 0.8.3
+cordless --version          # -> cordless 0.9.0
 cordless                    # dashboard + pairing QR
 
 # 5. uninstall
@@ -61,7 +61,7 @@ used instead.)
 
    ```powershell
    choco apikey --key <YOUR_API_KEY> --source https://push.chocolatey.org/
-   choco push $env:TEMP\cordless-choco\cordless.0.8.3.nupkg --source https://push.chocolatey.org/
+   choco push $env:TEMP\cordless-choco\cordless.0.9.0.nupkg --source https://push.chocolatey.org/
    ```
 
 3. The package goes through **automated + human moderation**. Notes for cordless:
