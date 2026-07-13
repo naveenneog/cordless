@@ -17,6 +17,12 @@ is **23/23** (`npm --prefix agent test`). Shipped:
    orphan cleanup. `cordless history [status|clear] [id] [--all]`; config `history.{persist,maxLines,
    maxBytes}`. Files: `state.js` (gz helpers), `sessions.js` (`_captureHistoryRecord`/`_liveLines`/
    `seedRestoredHistory`/`_restoredHistoryText`, `flushHistoryIfDirty`), `history.mjs` (phase D).
+   **Correctness gotcha (fixed):** on a graceful stop (POSIX SIGTERM) the daemon runs `shutdown()`,
+   which kills each PTY; the resulting `_onExit` must NOT clear history or rewrite the manifest, or the
+   restored session loses its history / isn't reopened. Guarded via a manager `_shuttingDown` flag
+   (`_onExit` skips `clearSessionHistory`; `_persistManifest` is a no-op during shutdown). Regression:
+   `history_shutdown.mjs` (drives `mgr.shutdown()` directly — the harness SIGTERM can't trigger graceful
+   shutdown on Windows). This only bit Linux/macOS CI; Windows SIGTERM is an uncatchable hard-kill.
 2. **Custom launchers** (`feature/custom-profiles`, `agent/src/profiles.js`): user profiles in
    `config.json` merge with built-ins (user wins). Direct-spawn `{command,args?,cwd?,env?,title?,
    attentionPreset?}` (resolved via the daemon PATH/PATHEXT — node-pty needs the full path) or legacy
