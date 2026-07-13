@@ -364,7 +364,8 @@ export async function runRename(prefix, title) {
 }
 
 // `cordless attach [id]` — attach to a session. With no id, resume the most-recently-active one.
-export async function runAttach(prefix) {
+// With opts.newWindow, open the session in a NEW terminal tab/window instead of attaching in place.
+export async function runAttach(prefix, opts = {}) {
   const { health: h, stale } = await ensureDaemon();
   if (stale) {
     console.error("cordless: an older daemon is running on this port. Run 'cordless stop' (or reboot), then retry.");
@@ -377,6 +378,7 @@ export async function runAttach(prefix) {
   const probe = new DaemonClient();
   await probe.connect();
   let id;
+  let title = "cordless";
   try {
     if (prefix) {
       id = await resolveId(probe, prefix);
@@ -391,12 +393,29 @@ export async function runAttach(prefix) {
       running.sort((a, b) => new Date(b.lastActivityAt || 0) - new Date(a.lastActivityAt || 0));
       id = running[0].sessionId;
     }
+    const match = (await probe.listSessions()).find((s) => s.sessionId === id);
+    if (match && match.title) title = match.title;
   } catch (e) {
     probe.close();
     console.error("cordless:", e.message);
     process.exit(1);
   }
   probe.close();
+
+  // Open in a new terminal tab/window and return — the current terminal (e.g. the dashboard) stays.
+  if (opts.newWindow) {
+    const { openInNewTerminal } = await import("./openterm.js");
+    const r = openInNewTerminal(["attach", id], { title });
+    if (r.ok) console.log(`opened ${id.slice(0, 8)} in a new ${r.method === "wt" ? "tab" : "window"}.`);
+    else {
+      console.error("cordless: couldn't open a new terminal (" + (r.error || "unknown") + "); attaching here instead.\n");
+      const reason = await attachSession(id);
+      if (reason === "detach") console.log("\n[detached]");
+      else if (reason === "disconnected") console.log("\n[disconnected]");
+    }
+    return;
+  }
+
   console.log(`attaching to ${id.slice(0, 8)} \u2014 detach with Ctrl-] then d\n`);
   const reason = await attachSession(id);
   if (reason === "detach") console.log("\n[detached]");

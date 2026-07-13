@@ -122,6 +122,11 @@ async function main() {
     const { code, out } = await runTest("profiles.mjs", freshHome());
     record("profiles", code === 0 && /PROFILES PASS/.test(out));
   }
+  console.log("== openterm ==");
+  {
+    const { code, out } = await runTest("openterm.mjs", freshHome());
+    record("openterm", code === 0 && /OPENTERM PASS/.test(out));
+  }
   console.log("== history_shutdown ==");
   {
     const { code, out } = await runTest("history_shutdown.mjs", freshHome());
