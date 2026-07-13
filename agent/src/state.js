@@ -69,6 +69,10 @@ const DEFAULT_CONFIG = {
     shell: { label: "Shell" },
     claude: { label: "Claude Code", initCommand: "claude" },
     codex: { label: "Codex", initCommand: "codex" },
+    // GitHub Copilot CLI (the standalone `copilot` agent, not `gh copilot`). Spawned directly; shows
+    // as unavailable until you install it (npm i -g @github/copilot). attentionPreset drives the
+    // shared coding-agent attention heuristics (waiting-for-input / finished).
+    copilot: { label: "GitHub Copilot", command: "copilot", attentionPreset: "agent" },
   },
   // Optional outbound notifications when a session needs attention. Disabled by default; no cloud
   // owned by cordless. See agent/src/notifier.js. Topic/webhookUrl/token are secrets.
@@ -102,6 +106,10 @@ export function loadConfig() {
 
 // Names of the profiles that ship with cordless (to distinguish user/override profiles for display).
 export const BUILTIN_PROFILE_NAMES = Object.keys(DEFAULT_CONFIG.profiles);
+
+// The profiles that ship with cordless, by name (used to tell a real user override from a built-in
+// that merely got written to disk verbatim on first run).
+export const BUILTIN_PROFILES = DEFAULT_CONFIG.profiles;
 
 // The raw `profiles` map exactly as the user wrote it in config.json (before the built-in merge).
 export function loadRawUserProfiles() {

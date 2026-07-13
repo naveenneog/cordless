@@ -13,7 +13,7 @@
 // treat it as trusted local input (user-only perms) and never let remote clients edit it.
 import path from "node:path";
 import fs from "node:fs";
-import { BUILTIN_PROFILE_NAMES, loadRawUserProfiles } from "./state.js";
+import { BUILTIN_PROFILE_NAMES, BUILTIN_PROFILES, loadRawUserProfiles } from "./state.js";
 
 export const PROFILE_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,31}$/;
 const ATTENTION_PRESETS = new Set(["shell", "agent", "none"]);
@@ -124,14 +124,23 @@ export function resolveExecutable(command, env = process.env) {
 // Where a profile came from, for display.
 export function profileSource(name) {
   const isBuiltin = BUILTIN_PROFILE_NAMES.includes(name);
-  let userNames = [];
+  let userProfiles = {};
   try {
-    userNames = Object.keys(loadRawUserProfiles());
+    userProfiles = loadRawUserProfiles();
   } catch {
     /* ignore */
   }
-  const isUser = userNames.includes(name);
-  if (isUser && isBuiltin) return "override";
+  const isUser = Object.prototype.hasOwnProperty.call(userProfiles, name);
+  if (isUser && isBuiltin) {
+    // Writing DEFAULT_CONFIG to disk on first run copies the built-ins into the user's config file,
+    // which would otherwise make every built-in look overridden. It's only a real override if the
+    // stored value actually differs from the shipped default.
+    try {
+      return JSON.stringify(userProfiles[name]) === JSON.stringify(BUILTIN_PROFILES[name]) ? "built-in" : "override";
+    } catch {
+      return "override";
+    }
+  }
   if (isUser) return "user";
   return "built-in";
 }
