@@ -3,44 +3,10 @@
 import { loadDevices, revokeDevice } from "./state.js";
 import { installService, uninstallService, stopDaemon, status, runningPid, writePid, startDaemonDetached } from "./service.js";
 import { VERSION } from "./version.js";
+import { topLevelHelp, commandHelp, findCommand } from "./cli/help.js";
 
 const cmd = process.argv[2];
 const args = process.argv.slice(3);
-
-const HELP = `cordless v${VERSION} — remote terminal / coding-agent session manager
-
-  cordless                       open the dashboard (status + pairing QR + sessions)
-  cordless --once                print one dashboard frame and exit (non-interactive)
-
-  cordless start [--foreground]  start the daemon (detached by default)
-  cordless stop                  stop the running daemon
-  cordless status                is the daemon running?
-  cordless doctor                diagnose daemon / Tailscale / firewall / profiles
-  cordless notify [status|test]  show or test attention notifications (ntfy / webhook)
-
-  cordless pair                  show a single-use pairing QR/code for a new device
-  cordless devices               list paired devices
-  cordless devices revoke <id>   revoke a device's token
-
-  cordless sessions              list sessions
-  cordless new [shell|claude|codex|<profile>] [--cwd <dir>] [--title <t>]
-  cordless attach [id]           attach to a session (no id = resume the most recent; detach: Ctrl-] d)
-  cordless attach <id> --new-window   open the session in a NEW terminal tab/window (keeps this one)
-  cordless resume                jump back into your most-recently-active session
-  cordless output <id> [--lines N] [--copy]   print/copy a session's last output
-  cordless search <id> <query>   search a session's retained scrollback
-  cordless kill <id>             stop a session
-  cordless rename <id> <title>   retitle a session's tab (empty = reset to default)
-  cordless profiles [show <name>]   list launch profiles (built-in + your custom ones)
-  cordless group <list|new|rename|delete|assign> [args]   session tab groups
-  cordless workspace <save|open|list|delete> [name]   named session templates
-  cordless history [status|clear] [id] [--all]   persisted scrollback (survives restart)
-
-  cordless install               start the daemon automatically at login
-  cordless setup [--uninstall]   install cordless to a stable path + PATH + autostart (or remove)
-  cordless uninstall [--purge]   remove the auto-start registration
-
-Config + state live in ~/.cordless (override with CORDLESS_HOME).`;
 
 function optValue(flag) {
   const i = args.indexOf(flag);
@@ -53,6 +19,15 @@ async function main() {
     const { runDashboard } = await import("./cli/dashboard.js");
     await runDashboard({ once: cmd === "--once" || cmd === "-1" });
     return;
+  }
+
+  // `cordless <command> --help|-h` -> that command's detailed help (bare --help handled by the switch).
+  if (cmd !== "--help" && cmd !== "-h" && (args.includes("--help") || args.includes("-h"))) {
+    const detail = commandHelp(cmd);
+    if (detail) {
+      console.log(detail);
+      return;
+    }
   }
 
   switch (cmd) {
@@ -227,11 +202,25 @@ async function main() {
       break;
     case "help":
     case "--help":
-    case "-h":
-      console.log(HELP);
+    case "-h": {
+      const topic = args.find((a) => !a.startsWith("-"));
+      if (topic) {
+        const detail = commandHelp(topic);
+        console.log(detail || `cordless: no help topic for '${topic}'.\n\n` + topLevelHelp());
+      } else {
+        console.log(topLevelHelp());
+      }
       break;
+    }
     default:
-      console.log(HELP);
+      if (findCommand(cmd)) {
+        // A known command reached default only via a bad sub-usage; show its help.
+        console.log(commandHelp(cmd));
+      } else {
+        console.error(`cordless: unknown command '${cmd}'.\n`);
+        console.log(topLevelHelp());
+        process.exitCode = 1;
+      }
   }
 }
 
