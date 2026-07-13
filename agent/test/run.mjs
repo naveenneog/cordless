@@ -122,6 +122,11 @@ async function main() {
     const { code, out } = await runTest("service.mjs", freshHome());
     record("service", code === 0 && /SERVICE PASS/.test(out));
   }
+  console.log("== help ==");
+  {
+    const { code, out } = await runTest("help.mjs", freshHome());
+    record("help", code === 0 && /HELP PASS/.test(out));
+  }
   console.log("== profiles ==");
   {
     const { code, out } = await runTest("profiles.mjs", freshHome());
