@@ -122,6 +122,11 @@ async function main() {
     const { code, out } = await runTest("profiles.mjs", freshHome());
     record("profiles", code === 0 && /PROFILES PASS/.test(out));
   }
+  console.log("== history_shutdown ==");
+  {
+    const { code, out } = await runTest("history_shutdown.mjs", freshHome());
+    record("history_shutdown", code === 0 && /HISTORY-SHUTDOWN PASS/.test(out));
+  }
 
   // Phase A: protocol + security + desktop credential (single daemon, shared home)
   console.log("== phase A: e2e / security / desktop ==");

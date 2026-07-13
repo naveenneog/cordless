@@ -470,8 +470,13 @@ class Session {
     this.activity = "exited";
     // An exited session is never reopened on the next daemon start, so its persisted history is moot;
     // drop the on-disk file (the live term buffer is still readable via `output` while it's listed).
-    this._historyDirty = false;
-    clearSessionHistory(this.id);
+    // BUT not during a daemon shutdown: those running sessions ARE restored next start, and on a
+    // graceful stop (POSIX SIGTERM) shutdown() kills the PTY, so clearing here would wipe the history
+    // we just saved for the restore.
+    if (!this.mgr._shuttingDown) {
+      this._historyDirty = false;
+      clearSessionHistory(this.id);
+    }
     // An agent session that did real work and then exited is "finished"; a bare shell exit is not.
     if (this._isAgent() && this._hadMeaningfulActivity) {
       this.attention = "finished";
@@ -654,6 +659,7 @@ export class SessionManager {
     this.sessions = new Map();
     this._onEvent = null; // (frame, { notify, session }) => void  — set by the server
     this._attTimer = null;
+    this._shuttingDown = false; // set during shutdown() so _onExit keeps history for the restore
     this.groups = loadGroups(); // { groupId: { id, name, color, order, revision, createdAt, updatedAt } }
   }
 
@@ -971,6 +977,7 @@ export class SessionManager {
   }
 
   shutdown() {
+    this._shuttingDown = true; // keep each running session's history when its PTY exit fires below
     this.stopEventLoop();
     for (const s of this.sessions.values()) {
       try {
