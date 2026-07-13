@@ -188,6 +188,9 @@ export class DaemonClient {
   killSession(sessionId, mode = "graceful") {
     return this._rpc("session.kill", { sessionId, mode });
   }
+  renameSession(sessionId, title) {
+    return this._rpc("session.rename", { sessionId, title }).then((m) => ({ title: m.title, revision: m.revision }));
+  }
   pairingCreate(opts = {}) {
     return this._rpc("pairing.create", opts);
   }

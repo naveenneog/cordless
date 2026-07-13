@@ -134,7 +134,7 @@ export function buildFrame(state, cols = 80, rows = 24) {
   push();
 
   // Footer
-  push(dim("\u2191/\u2193 select \u00b7 enter attach \u00b7 n new \u00b7 c clear \u00b7 p new QR \u00b7 d devices \u00b7 x kill \u00b7 r refresh \u00b7 q quit"));
+  push(dim("\u2191/\u2193 select \u00b7 enter attach \u00b7 n new \u00b7 e rename \u00b7 c clear \u00b7 p QR \u00b7 d devices \u00b7 x kill \u00b7 q quit"));
   if (state.message) push(yellow(truncate(state.message, inner)));
 
   return lines;

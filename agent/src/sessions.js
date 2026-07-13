@@ -73,6 +73,19 @@ function validCwd(cwd) {
   return os.homedir();
 }
 
+// Normalize a user-supplied tab title: NFC, trimmed, control/bidi chars stripped, capped to 80 code
+// points and 256 UTF-8 bytes. An empty result falls back to the session's generated default title.
+function normalizeTitle(raw, fallback) {
+  let t = (typeof raw === "string" ? raw : "").normalize("NFC");
+  // Strip C0/C1 controls, DEL, and bidi override/isolate controls; collapse any inner whitespace runs.
+  t = t.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").replace(/\s+/g, " ").trim();
+  if (!t) return fallback;
+  const cps = [...t];
+  if (cps.length > 80) t = cps.slice(0, 80).join("").trim();
+  while (Buffer.byteLength(t, "utf8") > 256) t = [...t].slice(0, -1).join("");
+  return t || fallback;
+}
+
 class Session {
   constructor(mgr, { id, profile, profileCfg, cwd, cols, rows, title }) {
     this.mgr = mgr;
@@ -83,7 +96,9 @@ class Session {
     this.cwd = validCwd(cwd);
     this.cols = cols;
     this.rows = rows;
-    this.title = title || `${profileCfg.label || profile} · ${path.basename(this.cwd) || this.cwd}`;
+    this._defaultTitle = `${(profileCfg && profileCfg.label) || profile} \u00b7 ${path.basename(this.cwd) || this.cwd}`;
+    this.title = title || this._defaultTitle;
+    this.metaRevision = 0; // monotonic session-metadata revision (bumped on rename); clients ignore stale
     this.createdAt = new Date().toISOString();
     this.lastActivityAt = this.createdAt;
     this.state = "running";
@@ -463,6 +478,7 @@ class Session {
       sessionId: this.id,
       generation: this.generation,
       title: this.title,
+      titleRevision: this.metaRevision,
       profile: this.profile,
       cwd: this.cwd,
       state: this.state,
@@ -480,6 +496,15 @@ class Session {
       attentionRevision: this.attentionRevision,
       lastLine: this._lastLinePreview(),
     };
+  }
+
+  // Rename the tab. An empty title restores the generated default. Bumps the monotonic metaRevision,
+  // persists the manifest, and returns { title, revision }. The manager broadcasts session.updated.
+  rename(rawTitle) {
+    this.title = normalizeTitle(rawTitle, this._defaultTitle);
+    this.metaRevision++;
+    this.mgr._persistManifest();
+    return { title: this.title, revision: this.metaRevision };
   }
 
   // A sanitized preview of the last non-empty terminal line (for list/detail previews).
@@ -670,6 +695,25 @@ export class SessionManager {
 
   get(id) {
     return this.sessions.get(id);
+  }
+
+  // Rename a session and broadcast the change to every connected client (session.updated).
+  rename(sessionId, rawTitle) {
+    const s = this.sessions.get(sessionId);
+    if (!s) throw new Error("unknown session");
+    const res = s.rename(rawTitle);
+    this._emitUpdated(s, { title: res.title });
+    return res;
+  }
+
+  // Broadcast a session-metadata change to all clients (reuses the startEventLoop broadcast channel).
+  _emitUpdated(session, changes) {
+    if (!this._onEvent) return;
+    try {
+      this._onEvent(out.sessionUpdated(session.id, session.metaRevision, changes), {});
+    } catch {
+      /* never let a listener break the session */
+    }
   }
 
   // ---- persisted-history admin (used by the `history.clear` / `history.list` ops) ----

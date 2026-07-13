@@ -289,6 +289,19 @@ export async function runKill(prefix) {
   });
 }
 
+// `cordless rename <id> <title...>` — retitle a session's tab (empty restores the default).
+export async function runRename(prefix, title) {
+  if (!prefix) {
+    console.error('usage: cordless rename <session-id-or-prefix> <new title>   (empty title = reset to default)');
+    process.exit(1);
+  }
+  await withClient(async (c) => {
+    const id = await resolveId(c, prefix);
+    const res = await c.renameSession(id, title || "");
+    console.log(`renamed ${id.slice(0, 8)} -> "${res.title}"`);
+  });
+}
+
 // `cordless attach [id]` — attach to a session. With no id, resume the most-recently-active one.
 export async function runAttach(prefix) {
   const { health: h, stale } = await ensureDaemon();

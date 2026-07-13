@@ -469,6 +469,16 @@ export async function runServer() {
         break;
       }
 
+      case "session.rename": {
+        try {
+          const { title, revision } = mgr.rename(m.sessionId, m.title);
+          safeSend(ws, out.sessionRenameResult(m.requestId, m.sessionId, title, revision));
+        } catch (err) {
+          safeSend(ws, out.error("session.rename.result", m.requestId, "no_session", String(err.message || err)));
+        }
+        break;
+      }
+
       case "session.ack": {
         const sub = conn.subscribers.get(m.sessionId);
         if (sub) sub.onAck(m.seq);
