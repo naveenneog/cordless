@@ -137,6 +137,54 @@ export async function runSearch(prefix, query, opts = {}) {
   });
 }
 
+// `cordless history [status|clear] [session] [--all]` — inspect or clear persisted session history.
+export async function runHistory(sub, prefix, opts = {}) {
+  const action = sub || "status";
+  await withClient(async (c) => {
+    if (action === "status" || action === "list") {
+      const items = await c.historyList();
+      if (!items.length) {
+        console.log("no persisted session history on disk.");
+        return;
+      }
+      console.log("\npersisted history (survives a daemon restart):\n");
+      for (const it of items) {
+        console.log(`  ${it.sessionId.slice(0, 8)}  ${(it.state || "gone").padEnd(8)} ${it.title || ""}`);
+      }
+      console.log(`\n  ${items.length} file(s) under ~/.cordless/history. Clear with: cordless history clear <id>|--all\n`);
+      return;
+    }
+    if (action === "clear") {
+      if (!prefix && !opts.all) {
+        console.error("usage: cordless history clear <session-id-or-prefix> | --all");
+        process.exit(1);
+      }
+      let id = null;
+      if (prefix && !opts.all) {
+        // Try the live session list first, then fall back to prefix-matching the on-disk files
+        // (so history for an already-gone session can still be cleared by id prefix).
+        id = await resolveId(c, prefix).catch(() => null);
+        if (!id) {
+          const match = (await c.historyList()).filter((it) => it.sessionId.startsWith(prefix));
+          if (match.length === 1) id = match[0].sessionId;
+          else if (match.length > 1) {
+            console.error(`ambiguous prefix "${prefix}" — matches ${match.length} history files.`);
+            process.exit(1);
+          } else {
+            console.error(`no persisted history matches "${prefix}".`);
+            process.exit(1);
+          }
+        }
+      }
+      const cleared = await c.historyClear(opts.all ? null : id);
+      console.log(`cleared ${cleared} history file(s).`);
+      return;
+    }
+    console.error("usage: cordless history [status|clear] [session] [--all]");
+    process.exit(1);
+  });
+}
+
 // `cordless workspace save|open|list|delete <name>` — named session templates.
 // A workspace snapshots the running sessions' profile + cwd + title so you can reopen a whole
 // project layout (e.g. "Claude on api, Codex on web, a tests shell") with one command.

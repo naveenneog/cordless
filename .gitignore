@@ -10,6 +10,7 @@ agent/dist-sea/
 .testhome/
 *.log
 agent/test/.restore-state.json
+agent/test/.history-state.json
 
 # playwright artifacts
 .playwright-mcp/
