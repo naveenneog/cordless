@@ -24,7 +24,8 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
 
   cordless sessions              list sessions
   cordless new [shell|claude|codex] [--cwd <dir>] [--title <t>]
-  cordless attach <id>           attach to a session (detach: Ctrl-] then d)
+  cordless attach [id]           attach to a session (no id = resume the most recent; detach: Ctrl-] d)
+  cordless resume                jump back into your most-recently-active session
   cordless output <id> [--lines N] [--copy]   print/copy a session's last output
   cordless search <id> <query>   search a session's retained scrollback
   cordless kill <id>             stop a session
@@ -104,7 +105,8 @@ async function main() {
       await runNew(profile, opts);
       break;
     }
-    case "attach": {
+    case "attach":
+    case "resume": {
       const { runAttach } = await import("./cli/commands.js");
       await runAttach(args[0]);
       break;

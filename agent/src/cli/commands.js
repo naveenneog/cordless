@@ -210,12 +210,13 @@ export async function runKill(prefix) {
   });
 }
 
+// `cordless attach [id]` — attach to a session. With no id, resume the most-recently-active one.
 export async function runAttach(prefix) {
-  if (!prefix) {
-    console.error("usage: cordless attach <session-id-or-prefix>");
+  const { health: h, stale } = await ensureDaemon();
+  if (stale) {
+    console.error("cordless: an older daemon is running on this port. Run 'cordless stop' (or reboot), then retry.");
     process.exit(1);
   }
-  const { health: h } = await ensureDaemon();
   if (!h) {
     console.error("cordless: daemon not running.");
     process.exit(1);
@@ -224,7 +225,19 @@ export async function runAttach(prefix) {
   await probe.connect();
   let id;
   try {
-    id = await resolveId(probe, prefix);
+    if (prefix) {
+      id = await resolveId(probe, prefix);
+    } else {
+      // Resume: the most-recently-active running session.
+      const running = (await probe.listSessions()).filter((s) => s.state === "running");
+      if (!running.length) {
+        probe.close();
+        console.error("cordless: no running sessions to resume — start one with `cordless new` or `cordless`.");
+        process.exit(1);
+      }
+      running.sort((a, b) => new Date(b.lastActivityAt || 0) - new Date(a.lastActivityAt || 0));
+      id = running[0].sessionId;
+    }
   } catch (e) {
     probe.close();
     console.error("cordless:", e.message);
