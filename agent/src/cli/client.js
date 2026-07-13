@@ -206,6 +206,9 @@ export class DaemonClient {
   historyList() {
     return this._rpc("history.list").then((m) => m.items || []);
   }
+  profiles() {
+    return this._rpc("profiles.list").then((m) => m.profiles || []);
+  }
 
   close() {
     try {

@@ -252,17 +252,20 @@ export async function runDashboard({ once = false } = {}) {
     // profile picker after 'n'
     if (pending === "new") {
       pending = null;
-      const map = { s: "shell", c: "claude", x: "codex" };
-      const profile = map[s];
-      if (profile) {
+      const profs = state.newProfiles || [];
+      const idx = /^[1-9]$/.test(s) ? parseInt(s, 10) - 1 : -1;
+      const profile = idx >= 0 ? profs[idx] : null;
+      if (profile && profile.available) {
         try {
-          await client.createSession(profile, {});
+          await client.createSession(profile.name, {});
           await refreshSessions();
           state.selected = state.sessions.length - 1;
-          state.message = "started " + profile;
+          state.message = "started " + profile.name;
         } catch (e) {
           state.message = "create failed: " + e.message;
         }
+      } else if (profile && !profile.available) {
+        state.message = `${profile.name} unavailable: ${profile.reason || "not found on PATH"}`;
       } else {
         state.message = null;
       }
@@ -344,10 +347,20 @@ export async function runDashboard({ once = false } = {}) {
         }
         break;
       }
-      case "n":
+      case "n": {
+        let profs = [];
+        try {
+          profs = await client.profiles();
+        } catch {
+          /* fall back to built-ins below */
+        }
+        if (!profs.length) profs = [{ name: "shell", available: true }, { name: "claude", available: true }, { name: "codex", available: true }];
+        state.newProfiles = profs;
         pending = "new";
-        state.message = "new session: s = shell \u00b7 c = Claude \u00b7 x = Codex \u00b7 (any other key cancels)";
+        const menu = profs.slice(0, 9).map((p, i) => `${i + 1}=${p.name}${p.available ? "" : dim("(n/a)")}`).join(" \u00b7 ");
+        state.message = "new: " + menu + " \u00b7 (other cancels)";
         break;
+      }
       case "x":
         if (state.sessions[state.selected]) {
           pending = "kill";

@@ -22,6 +22,7 @@ import {
 } from "./state.js";
 import { ClientMessage, out } from "./protocol.js";
 import { SessionManager } from "./sessions.js";
+import { describeProfiles } from "./profiles.js";
 import { isBlocked, recordFail, recordSuccess, authenticate, isLoopback } from "./auth.js";
 import { discoverHosts } from "./pairing.js";
 import { VERSION } from "./version.js";
@@ -564,6 +565,24 @@ export async function runServer() {
           break;
         }
         safeSend(ws, out.historyList(m.requestId, mgr.historyStatus()));
+        break;
+      }
+
+      case "profiles.list": {
+        // Read-only list of launchers. Remote clients get name/label/availability but not local paths.
+        const full = describeProfiles(cfg, process.env);
+        const loopback = conn.device?.scope === "loopback" && isLoopback(conn.ip);
+        const profiles = full.map((p) => ({
+          name: p.name,
+          label: p.label,
+          kind: p.kind,
+          source: p.source,
+          command: p.command,
+          available: p.available,
+          reason: p.reason,
+          ...(loopback ? { resolved: p.resolved } : {}),
+        }));
+        safeSend(ws, out.profilesList(m.requestId, profiles));
         break;
       }
     }
