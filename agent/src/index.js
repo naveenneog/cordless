@@ -31,6 +31,7 @@ const HELP = `cordless v${VERSION} — remote terminal / coding-agent session ma
   cordless workspace <save|open|list|delete> [name]   named session templates
 
   cordless install               start the daemon automatically at login
+  cordless setup [--uninstall]   install cordless to a stable path + PATH + autostart (or remove)
   cordless uninstall [--purge]   remove the auto-start registration
 
 Config + state live in ~/.cordless (override with CORDLESS_HOME).`;
@@ -138,6 +139,20 @@ async function main() {
     case "install":
       installService();
       break;
+    case "setup": {
+      const { runSetup } = await import("./cli/setup.js");
+      runSetup({
+        dir: optValue("--dir"),
+        noAutostart: args.includes("--no-autostart"),
+        noPath: args.includes("--no-path"),
+        pathOnly: args.includes("--path-only"),
+        dryRun: args.includes("--dry-run"),
+        uninstall: args.includes("--uninstall"),
+        purge: args.includes("--purge"),
+        copyOnly: args.includes("--copy-only"),
+      });
+      break;
+    }
     case "uninstall": {
       uninstallService();
       if (args.includes("--purge")) {

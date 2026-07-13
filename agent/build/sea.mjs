@@ -95,6 +95,21 @@ if (fs.existsSync(prebuilds)) {
 fs.rmSync(path.join(OUT, "sea-prep.blob"), { force: true });
 fs.rmSync(path.join(OUT, "bundle.cjs"), { force: true });
 fs.rmSync(path.join(OUT, "sea-config.json"), { force: true });
+
+// A double-click installer for the Windows zip: runs `cordless setup` (copies to a stable path,
+// adds it to PATH, and registers login autostart).
+if (isWin) {
+  fs.writeFileSync(
+    path.join(OUT, "Install cordless.cmd"),
+    "@echo off\r\n" +
+      "echo Installing cordless -- adds it to your PATH and starts it at login.\r\n" +
+      "echo.\r\n" +
+      '"%~dp0cordless.exe" setup\r\n' +
+      "echo.\r\n" +
+      "pause\r\n"
+  );
+}
+
 const mb = (fs.statSync(exe).size / 1e6).toFixed(1);
 console.log(`\nbuilt ${exe} (${mb} MB) + resources/  (node-pty + web client)`);
 console.log("  test:  " + (isWin ? "dist-sea\\cordless.exe --once" : "dist-sea/cordless --once"));
