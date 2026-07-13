@@ -6,6 +6,9 @@ export type ReplayMode = "incremental" | "reset" | "fresh";
 export interface SessionSummary {
   sessionId: string;
   title: string;
+  titleRevision?: number;
+  groupId?: string | null;
+  groupOrder?: number;
   profile: string;
   cwd: string;
   generation?: string;
@@ -17,6 +20,14 @@ export interface SessionSummary {
   latestSeq: number;
   attachedDevices: number;
   exitCode: number | null;
+}
+
+export interface SessionGroup {
+  id: string;
+  name: string;
+  color: string;
+  order: number;
+  revision: number;
 }
 
 export interface OutputFrame {

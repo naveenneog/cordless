@@ -1,8 +1,13 @@
+import { useState } from "react";
+import type { SessionGroup } from "../lib/protocol";
+import { groupColor } from "../lib/groupColor";
+
 interface Detail {
   sessionId: string;
   title: string;
   cwd: string;
   profile: string;
+  groupId: string | null;
   state: string;
   exitCode: number | null;
   host: string;
@@ -10,13 +15,22 @@ interface Detail {
 
 export function SessionDetails({
   detail,
+  groups,
   onClose,
   onKill,
+  onRename,
+  onAssign,
+  onCreateGroup,
 }: {
   detail: Detail;
+  groups: SessionGroup[];
   onClose: () => void;
   onKill: () => void;
+  onRename: (title: string) => void;
+  onAssign: (groupId: string | null) => void;
+  onCreateGroup: (name: string) => void;
 }) {
+  const [title, setTitle] = useState(detail.title);
   const copy = (s: string) => {
     navigator.clipboard?.writeText(s).catch(() => {});
   };
@@ -34,7 +48,53 @@ export function SessionDetails({
       <div className="sheet" onPointerDown={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
         <h3>Session details</h3>
-        {row("Title", detail.title, true)}
+
+        <div className="detail">
+          <span className="detail-k">Title</span>
+          <div className="rename-row">
+            <input
+              className="rename-input"
+              value={title}
+              placeholder="tab name"
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onRename(title.trim());
+              }}
+            />
+            <button className="mini-btn" onClick={() => onRename(title.trim())}>
+              Save
+            </button>
+          </div>
+        </div>
+
+        <div className="detail">
+          <span className="detail-k">Group</span>
+          <div className="group-picker">
+            <button className={"chip" + (!detail.groupId ? " on" : "")} onClick={() => onAssign(null)}>
+              None
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                className={"chip" + (detail.groupId === g.id ? " on" : "")}
+                style={{ ["--chip"]: groupColor(g.color) } as any}
+                onClick={() => onAssign(g.id)}
+              >
+                {g.name}
+              </button>
+            ))}
+            <button
+              className="chip new"
+              onClick={() => {
+                const name = window.prompt("New group name");
+                if (name && name.trim()) onCreateGroup(name.trim());
+              }}
+            >
+              + New
+            </button>
+          </div>
+        </div>
+
         {row("Profile", detail.profile)}
         {row("Working dir", detail.cwd, true)}
         {row("Host", detail.host, true)}
