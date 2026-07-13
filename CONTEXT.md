@@ -46,9 +46,19 @@ is **23/23** (`npm --prefix agent test`). Shipped:
    (All|Attention|Claude|Codex|Copilot|Shell — views, not groups; collapse state is client-local).
    Shared `visibleSessions()`/`groupedRows()` in `render.js` keep the dashboard + renderer in sync.
 
-Remaining: **6. `feature/group-ui-phone`** (phone chips + grouped card sections — the web client under
-`client/`). Later one-shot: `cordless group by-repo`. Deferred: nested groups, shared panes,
-drag-reorder everywhere, continuous auto-grouping.
+Remaining: none — the six-feature v0.8 program is complete (feature 6 shipped in v0.8.1). Later
+one-shot: `cordless group by-repo`. Deferred: nested groups, shared panes, drag-reorder everywhere,
+continuous auto-grouping, and a full phone card-grid rewrite (v0.8.1 filters the existing tab strip
+with group chips rather than replacing it).
+
+## v0.8.1 — tab groups on the phone
+
+`feature/group-ui-phone`: the phone web client (`client/`) is now group-aware — the connection tracks
+groups (`group.list` + `groups.updated`), carries `groupId` per tab, applies `session.updated` live,
+and gains `renameSession`/`assignGroup`/`createGroup`/`deleteGroup`. UI: a filter chip strip (All |
+Unread | one chip per group, with counts + color dots) filters the visible tabs; grouped tabs show a
+color dot; the details sheet renames the tab and moves it to a group (or creates one).
+`client/src/lib/groupColor.ts` maps colors to the theme. Verified with `tsc --noEmit` + `vite build`.
 
 ## v0.7.1 — packaged-binary fixes + self-installer
 
