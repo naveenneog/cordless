@@ -71,3 +71,14 @@ jobs:
         with:
           files: ${{ matrix.artifact }}
           fail_on_unmatched_files: false
+
+  # On a tag build, publish the CLI to Chocolatey (re-hashes the just-attached Windows zip). Runs in
+  # this same tag-triggered run, so it isn't blocked by the "GITHUB_TOKEN releases don't trigger
+  # workflows" rule. Requires the CHOCO_API_KEY repo secret; skipped on non-tag builds.
+  publish-choco:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/choco-publish.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit

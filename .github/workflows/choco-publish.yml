@@ -5,17 +5,26 @@ name: Publish to Chocolatey
 # version, packs, and pushes using the CHOCO_API_KEY secret.
 #
 # Triggers:
+#   - workflow_call: invoked by the CLI build (cli.yml) after a tag build, for hands-free publishing.
+#     (A `release: published` trigger can't be used — releases created by CI's GITHUB_TOKEN do not
+#      start new workflow runs, by design.)
 #   - workflow_dispatch: run manually, optionally pass a version (defaults to the latest release).
-#   - release published: auto-publish each new release (retries while the CLI zip finishes uploading).
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.9.0)."
+        required: false
+        type: string
+    secrets:
+      CHOCO_API_KEY:
+        required: true
   workflow_dispatch:
     inputs:
       version:
         description: "Version to publish, e.g. 0.9.0 (defaults to the latest release tag)."
         required: false
         type: string
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -32,11 +41,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $v = "${{ github.event.inputs.version }}"
-          if (-not $v) { $v = "${{ github.event.release.tag_name }}" }
+          $v = "${{ inputs.version }}"
           if (-not $v) { $v = gh release view --json tagName --jq '.tagName' }
           $v = ($v -replace '^v', '').Trim()
-          if (-not $v) { throw "could not resolve a version to publish" }
+          if ($v -notmatch '^\d+\.\d+\.\d+') { throw "not a version to publish: '$v'" }
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Publishing cordless $v"
 

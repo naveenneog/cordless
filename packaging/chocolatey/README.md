@@ -67,15 +67,22 @@ You need a Chocolatey account (<https://community.chocolatey.org>) and its API k
    gh secret set CHOCO_API_KEY --repo naveenneog/cordless   # prompts for the value (never echoed)
    ```
 
-2. Publish a version — either automatically (the workflow runs on every published GitHub release and
-   waits for the CLI zip to finish uploading) or manually:
+2. Publish a version — either automatically or manually:
 
-   ```powershell
-   gh workflow run "Publish to Chocolatey" -f version=0.9.0
-   ```
+   - **Automatic:** on a tag build, the CLI workflow (`cli.yml`) calls `choco-publish.yml` after it
+     builds + attaches the Windows zip, so every `git tag vX.Y.Z && git push --tags` publishes to
+     Chocolatey hands-free. (It's wired as a `workflow_call` from `cli.yml` rather than a
+     `release: published` trigger, because releases created by CI's `GITHUB_TOKEN` don't start new
+     workflow runs.)
+   - **Manual** (e.g. to re-push while a version is in moderation):
 
-   The job re-computes the release zip's SHA256, packs, and `choco push`es with the secret. The key
-   never leaves GitHub Actions.
+     ```powershell
+     gh workflow run "Publish to Chocolatey" -f version=0.9.0
+     ```
+
+   Either way the job re-computes the release zip's SHA256, packs, and `choco push`es with the secret.
+   The key never leaves GitHub Actions. Chocolatey allows re-pushing the **same** version until it is
+   approved, so a re-tag/rebuild simply updates the pending submission.
 
 ### B. Manually (local)
 
