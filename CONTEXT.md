@@ -27,6 +27,28 @@ version bump — re-tagged v0.9.0 at the fixed HEAD, CI rebuilt every asset, cho
   `secrets: inherit`). The old `release: published` trigger never fired (CI's GITHUB_TOKEN doesn't start
   workflow runs), so now `git push --tags` builds AND publishes to Chocolatey hands-free.
 
+### Verified on the Android emulator (v0.9.0 APK)
+
+Installed `cordless-v0.9.0.apk` on emulator-5554 (AVD `actioncut_test`), paired over `adb reverse
+tcp:7443` (server `http://localhost:7443`), and confirmed all four fixes on-device: agent icon badges
+in the tabs, the new-session picker showing Shell/Claude/Codex/**GitHub Copilot** as icon tiles, a live
+Codex session, and — via Chrome DevTools Protocol on the debug WebView (`webview_devtools_remote_<pid>`
+→ `adb forward tcp:9222` → `Runtime.evaluate`) — the key bar scrolling (`.keyrow` scrollWidth 454 >
+clientWidth 381, `overflow-x:auto` + `touch-action:pan-x`, `scrollLeft` moves and reveals `^C`/`^D`).
+Emulator-test workflow gotchas (stored as a user memory): uninstall-then-install (debug-key mismatch),
+port 80 can't be reversed, `adb shell input text` truncates the long pairing code (type it in two
+halves), and `adb input swipe` doesn't drive WebView touch-pan (use CDP to verify).
+
+### Open follow-ups found while testing (not yet fixed)
+
+- **Deep-link auto-pair doesn't fire via `am start`** — `cordless://pair?server=…#pair=…` launches/opens
+  the app but neither the cold-launch `App.getLaunchUrl()` nor the running `appUrlOpen` listener
+  prefills + auto-pairs the form (`client/src/lib/scan.ts` `installDeepLinkHandler`, `App.tsx`,
+  `Pairing.tsx`). Works only via the manual form. Should work from a real camera app but unconfirmed.
+- **QR-scanner camera-permission flow ANRs on the emulator** — tapping "Scan QR" → the camera permission
+  dialog hung the app + Permission Controller (ANR). May be emulator-only sluggishness; worth guarding
+  the scanner init so it can't block the main thread (`client/src/lib/scan.ts` `scanPairingQr`).
+
 ## v0.9.0 — accurate `start` diagnosis + in-CLI help
 
 Two per-feature branches, then released as 0.9.0 (the choco-ready, self-documenting release):
