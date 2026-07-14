@@ -279,12 +279,14 @@ body,
 .keyrow {
   display: flex;
   gap: 6px;
-}
-.keyrow.scroll {
   overflow-x: auto;
+  /* the keys preventDefault on pointerdown (to keep the soft keyboard open); pan-x lets the row still
+     scroll horizontally on touch so every key (incl. ^C/^D and the symbols) is reachable */
+  touch-action: pan-x;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
-.keyrow.scroll::-webkit-scrollbar {
+.keyrow::-webkit-scrollbar {
   display: none;
 }
 .key {
