@@ -29,9 +29,16 @@ function onPath(cmd) {
 // we don't know how on this platform. Pure (no spawning) so it's unit-testable.
 export function newTerminalCommand(cordlessArgs, { title = "cordless" } = {}) {
   const [bin, base] = selfCmd(cordlessArgs);
-  // A session title is user-controlled (rename); strip anything that could break wt/start/shell arg
-  // parsing before using it as a window/tab title.
-  const safeTitle = ("cordless: " + String(title)).replace(/[;"'`\\\r\n\t|&<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+  // Default new-tab name is the cordless brand mark ">_<"; a renamed session appends its title.
+  // The user-controlled title is stripped of anything that could break wt/shell arg parsing; ">_<" is a
+  // fixed trusted literal kept verbatim (safeTitle is only ever used in the wt argv path, where it is a
+  // single CreateProcess argument — never the `cmd /c start` shell fallback, which uses an empty title).
+  const raw = String(title || "").trim();
+  const custom =
+    raw && raw.toLowerCase() !== "cordless"
+      ? " " + raw.replace(/[;"'`\\\r\n\t|&<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 48)
+      : "";
+  const safeTitle = (">_<" + custom).slice(0, 60);
   if (process.platform === "win32") {
     // Windows Terminal → a real new TAB in the current window (-w 0 = the most-recently-used window).
     if (onPath("wt.exe") || onPath("wt")) {

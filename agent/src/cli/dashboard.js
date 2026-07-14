@@ -493,7 +493,6 @@ export async function runDashboard({ once = false } = {}) {
         break;
       case "\r":
       case "\n":
-      case "o":
         if (state.sessions.length) {
           await doAttach();
           return;
@@ -568,7 +567,7 @@ export async function runDashboard({ once = false } = {}) {
         if (sess) {
           const r = openInNewTerminal(["attach", sess.sessionId], { title: sess.title || "cordless" });
           state.message = r.ok
-            ? `opened "${sess.title}" in a new ${r.method === "wt" ? "tab" : "window"} \u2014 this dashboard stays open`
+            ? `opened "${sess.title || "session"}" in a new ${r.method === "wt" ? "tab" : "window"} \u2014 this dashboard stays open`
             : "open in new window failed: " + (r.error || "unknown") + " (press enter to attach here instead)";
         }
         break;
