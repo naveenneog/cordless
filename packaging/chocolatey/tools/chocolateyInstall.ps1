@@ -6,7 +6,7 @@ $packageArgs = @{
   packageName    = 'cordless'
   unzipLocation  = $toolsDir
   url64bit       = 'https://github.com/naveenneog/cordless/releases/download/v0.9.0/cordless-cli-windows-x64.zip'
-  checksum64     = 'B8A1D79BDBDBD00621731566B525CEC8259CFD01C0E081E02F971170D9B833D0'
+  checksum64     = '6D0D2444EC48360F1C697D09A9EAABC9B256F2C863550D1F96CB37B30B4DCAF3'
   checksumType64 = 'sha256'
 }
 Install-ChocolateyZipPackage @packageArgs

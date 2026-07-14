@@ -12,7 +12,7 @@ GitHub release (same file the project publishes on its website):
 
 The embedded SHA256 checksum (in tools\chocolateyInstall.ps1) is:
 
-  x64:  B8A1D79BDBDBD00621731566B525CEC8259CFD01C0E081E02F971170D9B833D0
+  x64:  6D0D2444EC48360F1C697D09A9EAABC9B256F2C863550D1F96CB37B30B4DCAF3
 
 To verify yourself:
 
