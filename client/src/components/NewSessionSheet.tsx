@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PROFILES } from "../lib/protocol";
+import { AgentIcon } from "./AgentIcon";
 
 export function NewSessionSheet({
   onCreate,
@@ -21,9 +22,12 @@ export function NewSessionSheet({
             <button
               key={p.id}
               className="profile"
+              title={p.label}
+              aria-label={p.label}
               onClick={() => onCreate(p.id, { cwd: cwd.trim() || undefined, title: title.trim() || undefined })}
             >
-              {p.label}
+              <AgentIcon profile={p.id} size={34} />
+              <span className="profile-name">{p.label}</span>
             </button>
           ))}
         </div>
