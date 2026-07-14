@@ -33,8 +33,12 @@ so only `cordless.exe` is shimmed onto PATH. `update-checksum.ps1 -Version X` re
 SHA256 across the nuspec/install/verification files; `README.md` has the pack/test/**push** steps
 (needs a community.chocolatey.org account + API key). `cordless`, `cordless start`, and
 `cordless install` all work under the shim (the only quirk is the one-time first-run exe scan — see the
-choco README). After the v0.9.0 release builds, run `update-checksum.ps1 -Version 0.9.0` and push.
-Not yet pushed to community.chocolatey.org (awaiting the user's account).
+choco README). **v0.9.0 was published to community.chocolatey.org** (page:
+community.chocolatey.org/packages/cordless/0.9.0) — in moderation (first version of a new id gets human
+review). Publishing is automated via `.github/workflows/choco-publish.yml` (secret **`CHOCO_API_KEY`**):
+it runs on every published GitHub release, or manually via
+`gh workflow run "Publish to Chocolatey" -f version=<X>` — it re-hashes the release zip, packs, and
+`choco push`es. `update-checksum.ps1 -Version X` does the same refresh locally.
 
 ## v0.8.3 — open sessions in new terminal tabs
 
