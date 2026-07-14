@@ -1,0 +1,76 @@
+name: Publish to Chocolatey
+
+# Publishes the cordless CLI to the Chocolatey community repository. The package itself just
+# downloads the matching GitHub release zip, so this job re-computes that zip's SHA256 for the target
+# version, packs, and pushes using the CHOCO_API_KEY secret.
+#
+# Triggers:
+#   - workflow_dispatch: run manually, optionally pass a version (defaults to the latest release).
+#   - release published: auto-publish each new release (retries while the CLI zip finishes uploading).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 0.9.0 (defaults to the latest release tag)."
+        required: false
+        type: string
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ github.event.inputs.version }}"
+          if (-not $v) { $v = "${{ github.event.release.tag_name }}" }
+          if (-not $v) { $v = gh release view --json tagName --jq '.tagName' }
+          $v = ($v -replace '^v', '').Trim()
+          if (-not $v) { throw "could not resolve a version to publish" }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Publishing cordless $v"
+
+      - name: Guard the API key secret
+        shell: pwsh
+        run: |
+          if (-not "${{ secrets.CHOCO_API_KEY }}") {
+            throw "CHOCO_API_KEY secret is not set. Add it under Settings -> Secrets and variables -> Actions."
+          }
+
+      - name: Refresh checksum for the release (retry while the zip uploads)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $ok = $false
+          for ($i = 0; $i -lt 10 -and -not $ok; $i++) {
+            try {
+              & packaging/chocolatey/update-checksum.ps1 -Version $v
+              $ok = $true
+            } catch {
+              Write-Host "attempt $($i + 1): $($_.Exception.Message) - the release zip may still be uploading; retrying in 30s"
+              Start-Sleep -Seconds 30
+            }
+          }
+          if (-not $ok) { throw "could not fetch/hash the v$v release zip after retries" }
+
+      - name: Pack
+        shell: pwsh
+        run: choco pack packaging/chocolatey/cordless.nuspec --outputdirectory $env:RUNNER_TEMP
+
+      - name: Push to the Chocolatey community repository
+        shell: pwsh
+        run: |
+          $nupkg = Join-Path $env:RUNNER_TEMP "cordless.${{ steps.ver.outputs.version }}.nupkg"
+          if (-not (Test-Path $nupkg)) { throw "nupkg not found: $nupkg" }
+          choco push $nupkg --source https://push.chocolatey.org/ -k="${{ secrets.CHOCO_API_KEY }}"
+          Write-Host "Pushed cordless ${{ steps.ver.outputs.version }} - it now goes through Chocolatey moderation."
