@@ -1,268 +1,764 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cordless — remote terminals in your pocket</title>
-    <meta name="description" content="cordless — a CLI-first remote terminal. Run cordless, scan the QR, and manage many Claude Code / Codex / GitHub Copilot / shell sessions from your phone. Tab groups, custom launchers, rename, persisted history. Self-contained binary, no Node needed." />
+    <title>cordless — remote terminals, in your pocket</title>
+    <meta
+      name="description"
+      content="cordless is a CLI-first remote terminal. Run cordless, scan the QR, and drive many Claude Code / Codex / GitHub Copilot / shell sessions from your phone — tab groups, custom launchers, persisted history. One self-contained binary, no Node needed."
+    />
+    <meta name="theme-color" content="#07090e" />
     <link rel="icon" type="image/png" href="./icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="cordless — remote terminals, in your pocket" />
+    <meta property="og:description" content="A CLI-first remote terminal. Run cordless, scan the QR, drive your dev-box sessions from your phone." />
+    <meta property="og:image" content="https://naveenneog.github.io/cordless/screenshot.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@300;400;500;600;700&family=Alumni+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      document.documentElement.classList.remove("no-js");
+      document.documentElement.classList.add("js");
+    </script>
     <style>
       :root {
-        --bg: #0b0e14; --bg2: #11151f; --bg3: #171c28; --line: #222a3a;
-        --fg: #c7d0e0; --muted: #7b869c; --accent: #7aa2f7; --accent2: #bb9af7; --green: #9ece6a;
+        --bg: #07090e;
+        --bg1: #0a0d15;
+        --bg2: #0e121c;
+        --bg3: #141a27;
+        --line: rgba(140, 160, 200, 0.12);
+        --line2: rgba(140, 160, 200, 0.22);
+        --fg: #d8e0f0;
+        --muted: #8b95ab;
+        --faint: #5c667e;
+        --blue: #7aa2f7;
+        --purple: #bb9af7;
+        --green: #9ece6a;
+        --amber: #e0af68;
+        --red: #f7768e;
+        --grad: linear-gradient(120deg, #7aa2f7 0%, #a78bfa 55%, #bb9af7 100%);
+        --glow: 0 0 60px rgba(122, 162, 247, 0.18);
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+        --shadow: 0 24px 70px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.02);
+        --maxw: 1120px;
       }
       * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
       body {
-        margin: 0; background: var(--bg); color: var(--fg);
-        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6;
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: "Albert Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.6;
+        font-size: 17px;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
       }
-      a { color: var(--accent); }
-      .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
-      header { text-align: center; padding: 72px 20px 32px; }
-      .brand { font-size: 54px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
-      .tagline { font-size: 20px; color: var(--muted); margin-top: 8px; }
-      .cta { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      /* Ambient background: a soft blue→purple aurora behind the page. */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -20% -10% auto -10%;
+        height: 90vh;
+        background:
+          radial-gradient(60% 55% at 72% 0%, rgba(122, 162, 247, 0.16), transparent 70%),
+          radial-gradient(50% 50% at 15% 8%, rgba(187, 154, 247, 0.12), transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .grain {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0.04;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      a { color: var(--blue); text-decoration: none; }
+      a:hover { color: #a9c2ff; }
+      code, kbd, pre, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+      code:not(pre code) {
+        font-size: 0.86em;
+        color: #b9c4dd;
+        background: rgba(140, 160, 200, 0.09);
+        border: 1px solid var(--line);
+        padding: 0.1em 0.42em;
+        border-radius: 6px;
+        white-space: nowrap;
+      }
+      ::selection { background: rgba(122, 162, 247, 0.3); color: #fff; }
+      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; position: relative; z-index: 2; }
+
+      /* ---------- brand mark ---------- */
+      .logo { display: block; }
+      .logo .lg { stroke: url(#cg); }
+
+      /* ---------- header ---------- */
+      header.site {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: saturate(140%) blur(14px);
+        background: rgba(7, 9, 14, 0.72);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 13px 24px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+      .brand { display: inline-flex; align-items: center; gap: 11px; }
+      .brand .name {
+        font-weight: 700;
+        font-size: 19px;
+        letter-spacing: -0.01em;
+        color: #eaf0fb;
+      }
+      .nav .links { display: flex; gap: 26px; margin-left: auto; }
+      .nav .links a {
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 500;
+        transition: color 160ms var(--ease-out);
+      }
+      .nav .links a:hover { color: var(--fg); }
+      .nav .gh {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--fg);
+        border: 1px solid var(--line2);
+        padding: 7px 13px;
+        border-radius: 9px;
+        font-size: 14px;
+        font-weight: 600;
+        transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+      }
+      .nav .gh:hover { border-color: var(--blue); }
+      .nav .gh:active { transform: scale(0.97); }
+      @media (max-width: 760px) { .nav .links { display: none; } }
+
+      /* ---------- buttons ---------- */
       .btn {
-        display: inline-block; padding: 12px 22px; border-radius: 10px; text-decoration: none;
-        font-weight: 700; border: 1px solid var(--line);
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 13px 22px;
+        border-radius: 11px;
+        font-weight: 600;
+        font-size: 15.5px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: transform 180ms var(--ease-out), box-shadow 220ms var(--ease-out), border-color 180ms var(--ease-out), background 180ms var(--ease-out);
       }
-      .btn.primary { background: var(--accent); color: #0b0e14; border: none; }
-      .btn.ghost { color: var(--fg); background: var(--bg3); }
-      .hero { margin: 24px auto 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
-      .hero img { display: block; width: 100%; }
-      section { padding: 40px 0; }
-      h2 { font-size: 26px; margin: 0 0 18px; }
-      h3 { font-size: 18px; margin: 22px 0 8px; color: var(--fg); }
-      .card h3 { margin: 0 0 6px; font-size: 17px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-      .card { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
-      .card h3 { margin: 0 0 6px; font-size: 17px; }
-      .card p { margin: 0; color: var(--muted); font-size: 15px; }
+      .btn:active { transform: scale(0.97); }
+      .btn.primary { background: var(--grad); color: #0a0d15; box-shadow: 0 12px 34px -10px rgba(122, 162, 247, 0.55); }
+      .btn.primary:hover { box-shadow: 0 16px 44px -8px rgba(122, 162, 247, 0.7); }
+      .btn.ghost { color: var(--fg); background: rgba(140, 160, 200, 0.05); border-color: var(--line2); }
+      .btn.ghost:hover { border-color: var(--blue); background: rgba(122, 162, 247, 0.08); }
+      .btn .arw { transition: transform 220ms var(--ease-out); }
+      .btn:hover .arw { transform: translateX(4px); }
+
+      /* ---------- hero ---------- */
+      .hero { padding: 74px 0 40px; position: relative; z-index: 2; }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.02fr 0.98fr;
+        gap: 52px;
+        align-items: center;
+      }
+      .kicker {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        color: var(--green);
+        margin: 0 0 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .kicker::before { content: ""; width: 22px; height: 1px; background: var(--green); opacity: 0.7; }
+      h1.title {
+        font-family: "Alumni Sans", sans-serif;
+        font-weight: 600;
+        font-size: clamp(52px, 7.4vw, 88px);
+        line-height: 0.94;
+        letter-spacing: -0.015em;
+        margin: 0;
+        color: #f2f6ff;
+      }
+      h1.title .grad {
+        background: var(--grad);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .hero p.lead {
+        color: var(--muted);
+        font-size: 18.5px;
+        max-width: 30em;
+        margin: 22px 0 32px;
+      }
+      .hero p.lead strong { color: var(--fg); font-weight: 600; }
+      .actions { display: flex; gap: 13px; flex-wrap: wrap; }
+      .runline {
+        margin-top: 26px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        color: var(--faint);
+      }
+      .runline b { color: var(--fg); font-weight: 500; }
+      .runline .dol { color: var(--green); }
+
+      .agents {
+        margin-top: 34px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+      .agents .lbl { font-size: 12.5px; color: var(--faint); font-family: "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+      .agents .row { display: flex; gap: 10px; }
+      .abadge {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 700;
+        font-size: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.6);
+        transition: transform 200ms var(--ease-out);
+      }
+      .abadge:hover { transform: translateY(-3px); }
+
+      /* ---------- terminal window ---------- */
+      .term {
+        border-radius: 14px;
+        border: 1px solid var(--line2);
+        background: linear-gradient(180deg, #0c1019, #090c13);
+        box-shadow: var(--shadow), var(--glow);
+        overflow: hidden;
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 14px;
+        background: rgba(140, 160, 200, 0.05);
+        border-bottom: 1px solid var(--line);
+      }
+      .term-bar .dot { width: 11px; height: 11px; border-radius: 50%; }
+      .d1 { background: #f7768e; } .d2 { background: #e0af68; } .d3 { background: #9ece6a; }
+      .term-bar .ttl { margin-left: 8px; font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--faint); }
+      .term-body {
+        padding: 18px 18px 20px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13.5px;
+        line-height: 1.85;
+        min-height: 316px;
+      }
+      .term-body .ln { display: block; white-space: pre; }
+      .term-body .p { color: var(--green); }
+      .term-body .cmd { color: #eaf0fb; }
+      .term-body .cm { color: var(--faint); }
+      .term-body .ok { color: var(--green); }
+      .term-body .warn { color: var(--amber); }
+      .cur { display: inline-block; width: 8px; height: 1.05em; background: var(--blue); vertical-align: -2px; animation: blink 1.1s steps(1) infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
+
+      /* hero terminal session rows */
+      .sess { display: flex; align-items: center; gap: 11px; padding: 2px 0; }
+      .sess .sdot { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex: 0 0 auto; }
+      .sess .snm { color: #cfd8ea; width: 74px; }
+      .sess .sst { margin-left: auto; font-size: 12px; }
+      .sess .sst.working { color: var(--green); }
+      .sess .sst.waiting { color: var(--amber); }
+      .sess .sst.idle { color: var(--faint); }
+      /* mini faux QR */
+      .qr { display: grid; grid-template-columns: repeat(11, 1fr); gap: 2px; width: 96px; margin: 6px 0 4px; }
+      .qr i { aspect-ratio: 1; background: #cdd6e8; border-radius: 1px; }
+      .qr i.o { background: transparent; }
+
+      /* staged reveal inside the hero terminal (JS adds .go) */
+      .js .term-body [data-step] { opacity: 0; }
+      .js .term-body.go [data-step] { animation: stepIn 0.5s var(--ease-out) forwards; }
+      .term-body.go [data-step="1"] { animation-delay: 0.15s; }
+      .term-body.go [data-step="2"] { animation-delay: 1s; }
+      .term-body.go [data-step="3"] { animation-delay: 1.7s; }
+      .term-body.go [data-step="4"] { animation-delay: 2.5s; }
+      .term-body.go [data-step="5"] { animation-delay: 2.75s; }
+      .term-body.go [data-step="6"] { animation-delay: 3.0s; }
+      .term-body.go [data-step="7"] { animation-delay: 3.25s; }
+      @keyframes stepIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+      /* ---------- sections ---------- */
+      section { padding: 58px 0; position: relative; z-index: 2; }
+      .sec-head { max-width: 760px; margin-bottom: 30px; }
+      h2 {
+        font-family: "Alumni Sans", sans-serif;
+        font-weight: 600;
+        font-size: clamp(34px, 4.6vw, 52px);
+        line-height: 1;
+        letter-spacing: -0.01em;
+        margin: 8px 0 0;
+        color: #eef2fb;
+      }
+      .sec-head p { color: var(--muted); font-size: 17.5px; margin: 14px 0 0; }
+      .lead-copy { color: var(--muted); font-size: 18px; max-width: 44em; }
+      .lead-copy strong { color: var(--fg); font-weight: 600; }
+
+      /* ---------- cards ---------- */
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+      .card {
+        background: linear-gradient(180deg, rgba(140, 160, 200, 0.045), rgba(140, 160, 200, 0.015));
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px;
+        transition: transform 240ms var(--ease-out), border-color 240ms var(--ease-out), background 240ms var(--ease-out);
+      }
+      @media (hover: hover) {
+        .card:hover { transform: translateY(-4px); border-color: var(--line2); background: linear-gradient(180deg, rgba(140, 160, 200, 0.07), rgba(140, 160, 200, 0.02)); }
+      }
+      .card .ic {
+        width: 40px; height: 40px; border-radius: 10px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 20px; margin-bottom: 14px;
+        background: rgba(122, 162, 247, 0.1);
+        border: 1px solid var(--line);
+      }
+      .card h3 { margin: 0 0 6px; font-size: 17.5px; color: #eaf0fb; font-weight: 600; letter-spacing: -0.01em; }
+      .card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.62; }
+
+      /* whats-new list */
+      .new { display: grid; gap: 12px; }
+      .new .item { display: grid; grid-template-columns: 118px 1fr; gap: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: rgba(140, 160, 200, 0.02); align-items: baseline; }
+      .new .tag { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--blue); font-weight: 500; }
+      .new .item h3 { margin: 0 0 4px; font-size: 16.5px; color: #eaf0fb; font-weight: 600; }
+      .new .item p { margin: 0; color: var(--muted); font-size: 15px; }
+      @media (max-width: 620px) { .new .item { grid-template-columns: 1fr; gap: 6px; } }
+
+      /* code blocks styled as terminals */
+      .code { margin: 14px 0; }
       pre {
-        background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
-        overflow-x: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; color: var(--fg);
+        margin: 0;
+        background: #090c13;
+        border: 1px solid var(--line2);
+        border-top: none;
+        border-radius: 0 0 12px 12px;
+        padding: 16px 18px;
+        overflow-x: auto;
+        font-size: 13.5px;
+        line-height: 1.75;
+        color: #cfd8ea;
       }
-      .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-      .shots img { width: 100%; border: 1px solid var(--line); border-radius: 12px; }
-      .note { background: var(--bg3); border: 1px solid var(--line); border-radius: 12px; padding: 16px; color: var(--muted); }
-      footer { text-align: center; color: var(--muted); padding: 40px 20px 64px; border-top: 1px solid var(--line); margin-top: 24px; }
-      @media (max-width: 640px) { .shots { grid-template-columns: 1fr; } .brand { font-size: 42px; } }
+      .code .term-bar { border-radius: 12px 12px 0 0; border: 1px solid var(--line2); border-bottom: 1px solid var(--line); }
+      pre .p { color: var(--green); }
+      pre .cm { color: var(--faint); }
+
+      /* install steps */
+      .steps { display: grid; gap: 26px; margin-top: 8px; }
+      .step { display: grid; grid-template-columns: 46px 1fr; gap: 18px; }
+      .step .num {
+        width: 46px; height: 46px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-family: "Alumni Sans", sans-serif; font-weight: 600; font-size: 26px;
+        color: var(--blue); border: 1px solid var(--line2); background: rgba(122, 162, 247, 0.07);
+      }
+      .step h3 { margin: 6px 0 8px; font-size: 20px; color: #eaf0fb; font-weight: 600; }
+      .step p { margin: 0 0 10px; color: var(--muted); font-size: 16px; }
+      .shot { width: 100%; border: 1px solid var(--line2); border-radius: 12px; margin: 8px 0 4px; box-shadow: var(--shadow); display: block; }
+
+      .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+      .shots img { width: 100%; border: 1px solid var(--line2); border-radius: 14px; box-shadow: var(--shadow); }
+      @media (max-width: 640px) { .shots { grid-template-columns: 1fr; } }
+
+      .note {
+        border: 1px solid var(--line2);
+        border-left: 3px solid var(--amber);
+        border-radius: 12px;
+        padding: 20px 22px;
+        color: var(--muted);
+        background: rgba(224, 175, 104, 0.05);
+        font-size: 15.5px;
+      }
+      .note strong { color: var(--fg); }
+
+      details { margin-top: 16px; color: var(--muted); border: 1px solid var(--line); border-radius: 11px; padding: 4px 16px; background: rgba(140,160,200,0.02); }
+      summary { cursor: pointer; padding: 12px 0; font-weight: 500; color: var(--fg); }
+
+      .manage { color: var(--muted); font-size: 14.5px; margin-top: 16px; line-height: 2; }
+
+      footer { border-top: 1px solid var(--line); margin-top: 40px; padding: 40px 0 64px; position: relative; z-index: 2; }
+      .foot { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; color: var(--faint); font-size: 14.5px; }
+      .foot .fbrand { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); }
+      .foot a { color: var(--muted); }
+      .foot a:hover { color: var(--fg); }
+
+      /* scroll reveal */
+      .js .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out); will-change: transform, opacity; }
+      .js .reveal.in { opacity: 1; transform: none; }
+
+      @media (max-width: 900px) {
+        .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+        .hero { padding: 48px 0 20px; }
+      }
+      /* Let grid/flex children shrink below their content's min-content width so wide <pre>/terminal
+         content scrolls or clips instead of forcing horizontal overflow (min-width:auto -> 0). */
+      .hero-left, .hero-right, .term, .step > div, .card, .new .item, .new .item > div, .sec-head { min-width: 0; }
+      pre, .code, img, .shot { max-width: 100%; }
+      .term-body { overflow: hidden; }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; scroll-behavior: auto; }
+        .js .reveal { opacity: 1; transform: none; }
+        .js .term-body [data-step] { opacity: 1; }
+        .cur { animation: none; }
+      }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap">
-        <img src="./icon.png" alt="cordless logo" width="96" height="96" style="border-radius:22px;display:block;margin:0 auto 14px;box-shadow:0 10px 30px rgba(0,0,0,.5)" />
-        <div class="brand">cordless</div>
-        <div class="tagline">A CLI-first remote terminal. Run <code>cordless</code>, scan the QR, drive your dev-box sessions from your phone.</div>
-        <div class="cta">
-          <a class="btn primary" href="https://github.com/naveenneog/cordless/releases/latest">Download CLI</a>
-          <a class="btn ghost" href="https://github.com/naveenneog/cordless">GitHub</a>
-          <a class="btn ghost" href="https://github.com/naveenneog/cordless/releases/latest">Android APK</a>
+    <div class="grain" aria-hidden="true"></div>
+
+    <!-- shared gradient for the >_< mark -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#7aa2f7" />
+          <stop offset="1" stop-color="#bb9af7" />
+        </linearGradient>
+      </defs>
+    </svg>
+
+    <header class="site">
+      <nav class="nav">
+        <a class="brand" href="#top" aria-label="cordless home">
+          <svg class="logo" width="42" height="26" viewBox="0 0 64 40" fill="none" aria-hidden="true">
+            <path class="lg" d="M8 8 L26 20 L8 32" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+            <path class="lg" d="M56 8 L38 20 L56 32" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+            <path class="lg" d="M27 33 L37 33" stroke-width="5" stroke-linecap="round" />
+          </svg>
+          <span class="name">cordless</span>
+        </a>
+        <div class="links">
+          <a href="#what">What</a>
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#phone">Phone</a>
         </div>
-        <div class="hero"><img src="./screenshot.png" alt="cordless managing terminal sessions as tabs" /></div>
-      </div>
+        <a class="gh" href="https://github.com/naveenneog/cordless" target="_blank" rel="noopener">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" /></svg>
+          <span>GitHub</span>
+        </a>
+      </nav>
     </header>
 
+    <a id="top"></a>
+    <div class="hero">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div class="hero-left">
+            <p class="kicker">remote terminals, in your pocket</p>
+            <h1 class="title">Your dev box.<br /><span class="grad">Every session.</span><br />On your phone.</h1>
+            <p class="lead">
+              cordless is a <strong>CLI-first</strong> remote terminal. Run <code>cordless</code>, scan the QR,
+              and drive many <strong>Claude Code</strong>, <strong>Codex</strong>, <strong>GitHub Copilot</strong>,
+              and shell sessions from anywhere — like browser tabs for your terminal.
+            </p>
+            <div class="actions">
+              <a class="btn primary" href="https://github.com/naveenneog/cordless/releases/latest">
+                Download the CLI
+                <svg class="arw" width="16" height="8" viewBox="0 0 16 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M0 4h13M10 1l3 3-3 3" /></svg>
+              </a>
+              <a class="btn ghost" href="#install">How it works</a>
+            </div>
+            <p class="runline"><span class="dol">$</span> <b>cordless setup</b> &amp;&amp; <b>cordless</b> &nbsp;<span class="cm mono" style="color:var(--faint)"># install + a pairing QR</span></p>
+            <div class="agents">
+              <span class="lbl">drives</span>
+              <div class="row">
+                <span class="abadge" style="background:#6b7280" title="Shell">&gt;_</span>
+                <span class="abadge" style="background:#d97757" title="Claude Code">✳</span>
+                <span class="abadge" style="background:#10a37f" title="Codex">❋</span>
+                <span class="abadge" style="background:#2f81f7" title="GitHub Copilot">◉</span>
+                <span class="abadge" style="background:rgba(140,160,200,0.12);color:var(--muted);font-size:13px" title="Your own custom launchers">+ you</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-right">
+            <div class="term" role="img" aria-label="cordless terminal: pairing a phone, then a dashboard of Claude, Codex, Copilot, and shell sessions">
+              <div class="term-bar">
+                <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+                <span class="ttl">cordless — dashboard</span>
+              </div>
+              <div class="term-body" id="hero-term">
+                <span class="ln" data-step="1"><span class="p">$</span> <span class="cmd">cordless pair</span></span>
+                <span class="ln" data-step="2"><span class="cm">  scan with the cordless app · valid 5 min</span></span>
+                <div data-step="2" style="display:flex;gap:14px;align-items:center">
+                  <div class="qr" aria-hidden="true">
+                    <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i class="o"></i>
+                    <i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i>
+                    <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i>
+                    <i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i>
+                    <i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i>
+                    <i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i>
+                    <i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i>
+                    <i></i><i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i>
+                    <i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i>
+                    <i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i>
+                    <i class="o"></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i>
+                  </div>
+                </div>
+                <span class="ln" data-step="3"><span class="ok">  ✓ paired</span> <span class="cm">"iPhone 15"</span></span>
+                <span class="ln" data-step="4" style="margin-top:6px"><span class="p">$</span> <span class="cmd">cordless</span></span>
+                <div class="sess" data-step="5"><span class="sdot" style="background:#d97757">✳</span><span class="snm">claude</span><span class="cm">web app</span><span class="sst working">working</span></div>
+                <div class="sess" data-step="6"><span class="sdot" style="background:#10a37f">❋</span><span class="snm">codex</span><span class="cm">api</span><span class="sst waiting">waiting · you</span></div>
+                <div class="sess" data-step="7"><span class="sdot" style="background:#2f81f7">◉</span><span class="snm">copilot</span><span class="cm">tests</span><span class="sst idle">idle</span></div>
+                <div class="sess" data-step="7"><span class="sdot" style="background:#6b7280;font-size:10px">&gt;_</span><span class="snm">shell</span><span class="cm">build</span><span class="sst idle">idle</span> <span class="cur" style="margin-left:6px"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="wrap">
-      <section>
-        <h2>What it is</h2>
-        <p style="color: var(--muted); max-width: 720px">
-          cordless is a single self-contained command you install on your dev box or laptop. Run
+      <section id="what">
+        <div class="sec-head reveal">
+          <p class="kicker">// what it is</p>
+          <h2>One command on your dev box.</h2>
+        </div>
+        <p class="lead-copy reveal">
+          cordless is a single <strong>self-contained binary</strong> you install on your dev box or laptop. Run
           <code>cordless</code> and it opens a full-screen terminal <strong>dashboard</strong> whose starting
-          screen shows a <strong>pairing QR</strong> — scan it with the phone app and your sessions (a shell,
-          <code>claude</code>, <code>codex</code>, <code>copilot</code>, or your own <strong>custom
-          launchers</strong>) are in your pocket. Organise them into <strong>tab groups</strong>, rename
-          tabs, and keep going after a reboot — sessions are restored with their <strong>scrollback
-          history</strong>. The daemon stays up after you close the dashboard, and reconnecting replays where
-          you left off.
+          screen is a <strong>pairing QR</strong> — scan it with the phone app and your sessions (a shell,
+          <code>claude</code>, <code>codex</code>, <code>copilot</code>, or your own <strong>custom launchers</strong>)
+          are in your pocket. Organise them into <strong>tab groups</strong>, rename tabs, and keep going after a
+          reboot — sessions are restored with their <strong>scrollback history</strong>. The daemon stays up after
+          you close the dashboard, and reconnecting replays exactly where you left off.
         </p>
       </section>
 
-      <section>
-        <h2>New in v0.9</h2>
+      <section id="features">
+        <div class="sec-head reveal">
+          <p class="kicker">// features</p>
+          <h2>Built for people who live in the terminal.</h2>
+        </div>
         <div class="grid">
-          <div class="card"><h3>📖 Built-in help</h3><p>cordless documents itself. <code>cordless help</code> is a grouped command overview; <code>cordless help &lt;command&gt;</code> (or <code>cordless &lt;command&gt; --help</code>) shows usage, options, and examples for any command.</p></div>
-          <div class="card"><h3>⚡ Reliable <code>start</code></h3><p><code>cordless start</code> launches the daemon fully detached and returns cleanly in every environment — a plain terminal, a Chocolatey shim, or CI — with its logs in <code>~/.cordless/daemon.log</code>.</p></div>
+          <div class="card reveal"><div class="ic">⌨️</div><h3>CLI-first</h3><p>One self-contained binary — its own Node runtime and <code>node-pty</code>, no install prereq. Run <code>cordless</code> for a full-screen dashboard: status, a live pairing QR, and your sessions.</p></div>
+          <div class="card reveal"><div class="ic">👀</div><h3>Attention state</h3><p>Juggling many agents? cordless infers which is <em>working</em>, <em>idle</em>, or <em>waiting for you</em> from its output, badges and sorts them attention-first, and can ping your phone (ntfy / webhook).</p></div>
+          <div class="card reveal"><div class="ic">♾️</div><h3>Persistent sessions</h3><p>PTYs survive disconnects, network switches, and app backgrounding. Reconnect and it replays from your last-seen byte, or a full-screen snapshot.</p></div>
+          <div class="card reveal"><div class="ic">🗂️</div><h3>Tabs &amp; groups</h3><p>From the dashboard press <code>o</code> to open a session in a new terminal tab (Windows Terminal) — like browser tabs. Chrome-mobile-style groups keep &gt;10 sessions tidy on the phone.</p></div>
+          <div class="card reveal"><div class="ic">🛰️</div><h3>Reach it anywhere</h3><p>Tailscale is the recommended path; same-Wi-Fi LAN also works. No ports exposed to the public internet — ever.</p></div>
+          <div class="card reveal"><div class="ic">🔒</div><h3>Secure by default</h3><p>Per-device hashed tokens, single-use pairing codes only the local daemon can mint (loopback-only), an Origin allowlist, strict CSP — and a daemon that only ever runs as you.</p></div>
         </div>
       </section>
 
-      <section>
-        <h2>New in v0.8</h2>
-        <div class="grid">
-          <div class="card"><h3>🗂️ Tab groups</h3><p>Chrome-mobile-style groups for when you're juggling &gt;10 sessions. Collapsible group headers in the dashboard, group chips on the phone, and a smart-view filter (All · Attention · Claude · Codex · Copilot · Shell).</p></div>
-          <div class="card"><h3>🚀 Custom launchers</h3><p>Define your own profiles in <code>~/.cordless/config.json</code> — any command, args, cwd, env. Missing executables show as unavailable instead of crashing. <code>cordless profiles</code> lists them all.</p></div>
-          <div class="card"><h3>🤖 GitHub Copilot CLI</h3><p>A built-in <code>copilot</code> profile alongside <code>claude</code> and <code>codex</code>, with the same waiting/finished attention detection agents get.</p></div>
-          <div class="card"><h3>💾 Persisted history</h3><p>A capped, plain-text scrollback is saved per session, so a reopened session after a reboot shows what it was doing before — <code>cordless history</code> to inspect or clear it.</p></div>
-          <div class="card"><h3>✏️ Rename tabs</h3><p>Rename any session — <code>cordless rename &lt;id&gt; &lt;title&gt;</code>, the dashboard <code>e</code> key, or long-press on the phone. Changes broadcast live to every connected client.</p></div>
-          <div class="card"><h3>📦 Real installer</h3><p><code>cordless setup</code> installs the binary to a stable path, adds it to <code>PATH</code>, and registers autostart — no more hand-extracting a zip.</p></div>
+      <section id="new">
+        <div class="sec-head reveal">
+          <p class="kicker">// changelog</p>
+          <h2>What's new.</h2>
+        </div>
+        <div class="new">
+          <div class="item reveal"><span class="tag">v0.9 · start</span><div><h3>Reliable <code>start</code> &amp; built-in help</h3><p><code>cordless start</code> detaches cleanly in every environment (plain shell, Chocolatey shim, or CI). And cordless documents itself: <code>cordless help &lt;command&gt;</code> shows usage, options, and examples for anything.</p></div></div>
+          <div class="item reveal"><span class="tag">v0.9 · phone</span><div><h3>Agent icons + a scrollable key bar</h3><p>The app shows each agent as a colored icon (shell, Claude, Codex, GitHub Copilot) instead of a name, and the on-screen key bar scrolls so Esc/Tab/arrows/^C are all reachable. Open a session in a new tab with <code>o</code>.</p></div></div>
+          <div class="item reveal"><span class="tag">v0.8 · organise</span><div><h3>Tab groups, custom launchers, rename</h3><p>Chrome-mobile-style groups, your own profiles in <code>~/.cordless/config.json</code> (any command/args/cwd/env), and live rename from the dashboard <code>e</code> key or a long-press on the phone.</p></div></div>
+          <div class="item reveal"><span class="tag">v0.8 · restore</span><div><h3>Persisted scrollback history</h3><p>A capped, plain-text scrollback is saved per session, so a reopened session after a reboot shows what it was doing before — <code>cordless history</code> to inspect or clear it.</p></div></div>
         </div>
       </section>
 
-      <section>
-        <div class="grid">
-          <div class="card"><h3>CLI-first</h3><p>One self-contained binary (its own Node runtime + <code>node-pty</code>, no install prereq). Run <code>cordless</code> for a full-screen dashboard: status, a live pairing QR, and your sessions.</p></div>
-          <div class="card"><h3>Attention state</h3><p>Juggling many Claude / Codex sessions? cordless infers which is <em>working</em>, <em>idle</em>, or <em>waiting for you</em> from its output, badges and sorts them attention-first, and can ping your phone (ntfy / webhook).</p></div>
-          <div class="card"><h3>Persistent sessions</h3><p>PTYs survive disconnects, network switches, and app backgrounding. Reconnect replays from your last-seen byte, or a full-screen snapshot.</p></div>
-          <div class="card"><h3>Attach anywhere</h3><p><code>cordless attach &lt;id&gt;</code> streams a session into your terminal; from the dashboard press <code>o</code> to open a session in a <strong>new terminal tab/window</strong> (Windows Terminal) so the dashboard stays open — like browser tabs. The phone app gives you the same sessions with a touch key bar.</p></div>
-          <div class="card"><h3>Reach it anywhere</h3><p>Tailscale is the recommended path; same-Wi-Fi LAN also works. No ports exposed to the internet.</p></div>
-          <div class="card"><h3>Secure by default</h3><p>Per-device tokens, single-use pairing codes only the local daemon can mint (loopback-only), Origin allowlist, CSP, and a daemon that only ever runs as you.</p></div>
+      <section id="install">
+        <div class="sec-head reveal">
+          <p class="kicker">// install</p>
+          <h2>Two commands. Thirty seconds.</h2>
+          <p><code>cordless setup</code> installs + starts the daemon; <code>cordless</code> shows a QR you scan with the phone.</p>
         </div>
-      </section>
+        <a class="reveal" href="./assets/install/install.gif"><img class="shot" src="./assets/install/install.gif" alt="cordless install: cordless setup, then cordless shows a pairing QR" /></a>
 
-      <section>
-        <h2>Requirements</h2>
-        <div class="grid">
-          <div class="card">
-            <h3>Dev box (runs cordless)</h3>
-            <p>
-              <strong>Nothing.</strong> The cordless CLI is a self-contained binary (its own Node runtime +
-              <code>node-pty</code>) for Windows or Linux. Optional: coding agents on <code>PATH</code>
-              (<code>claude</code>, <code>codex</code>, <code>copilot</code>) for those built-in profiles, or
-              add your own launchers. <em>(Building from source needs Node 22+ and a C/C++ toolchain for
-              <code>node-pty</code>.)</em>
-            </p>
+        <div class="steps" style="margin-top:34px">
+          <div class="step reveal">
+            <div class="num">1</div>
+            <div>
+              <h3>Install cordless on your dev box</h3>
+              <p>Download the self-contained <strong>cordless CLI</strong> from <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a> — it bundles its own Node runtime <em>and</em> <code>node-pty</code>, so there's nothing to install first.</p>
+              <div class="code">
+                <div class="term-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="ttl">releases</span></div>
+                <pre>Windows   cordless-cli-windows-x64.zip    <span class="p">→</span>  run cordless.exe
+Linux     cordless-cli-linux-x64.tar.gz   <span class="p">→</span>  run ./cordless
+macOS     use the desktop app, or build from source</pre>
+              </div>
+              <p>Then let cordless install itself in one step:</p>
+              <div class="code">
+                <div class="term-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="ttl">setup</span></div>
+                <pre><span class="p">$</span> cordless setup      <span class="cm"># copy to a stable path, add to PATH + autostart, START the daemon</span>
+<span class="p">$</span> cordless            <span class="cm"># open the dashboard: status + a pairing QR + your sessions</span>
+<span class="p">$</span> cordless install    <span class="cm"># (alt) just register the daemon to run at login</span></pre>
+              </div>
+              <p style="font-size:14.5px"><code>cordless setup</code> is the whole installer: it copies the binary, adds it to <code>PATH</code>, registers autostart, <strong>cleans up any older install</strong>, and starts the daemon. Open a <strong>new</strong> terminal and run <code>cordless</code>.</p>
+              <img class="shot" src="./assets/install/install-setup.png" alt="cordless setup output: copied binary, added to PATH, registered autostart, started the daemon" />
+            </div>
           </div>
-          <div class="card">
-            <h3>Phone</h3>
-            <p>
-              Any modern browser (install the <strong>PWA</strong>), or Android 8.0+ for the
-              <strong>APK</strong>. Nothing else to install.
-            </p>
+
+          <div class="step reveal">
+            <div class="num">2</div>
+            <div>
+              <h3>Pair your phone</h3>
+              <p><code>cordless</code>'s starting screen shows a <strong>QR</strong>. Install the <a href="https://github.com/naveenneog/cordless/releases/latest">Android app</a>, tap <strong>Scan QR</strong>, and scan it. (Or press <code>p</code> for a fresh code, run <code>cordless pair</code>, or open the printed URL in your phone's browser as a PWA.)</p>
+              <img class="shot" src="./assets/install/install-qr.png" alt="cordless dashboard with a pairing QR to scan with the phone app" />
+            </div>
           </div>
-          <div class="card">
-            <h3>Remote access (optional)</h3>
-            <p>
-              <a href="https://tailscale.com">Tailscale</a> on the dev box <em>and</em> phone for
-              secure access from anywhere. Same-Wi-Fi LAN needs nothing extra.
-            </p>
-          </div>
-          <div class="card">
-            <h3>Only if you build the APK yourself</h3>
-            <p>
-              <strong>Node ≥ 22</strong>, <strong>JDK 21</strong>, and the <strong>Android SDK</strong>
-              (platform 34+, build-tools 34+). Most people just grab the prebuilt APK from Releases.
-            </p>
+
+          <div class="step reveal">
+            <div class="num">3</div>
+            <div>
+              <h3>From anywhere</h3>
+              <p>Put the dev box <em>and</em> phone on the same <a href="https://tailscale.com">Tailscale</a> tailnet and lock port 7443 to your own devices with a tailnet ACL. The pairing QR then uses a stable <code>100.x</code> / <code>*.ts.net</code> address. Never expose 7443 to the public internet.</p>
+              <p class="manage">
+                Manage it: <code>cordless status</code> · <code>cordless doctor</code> · <code>cordless sessions</code> ·
+                <code>cordless attach &lt;id&gt;</code> · <code>cordless resume</code> · <code>cordless profiles</code> ·
+                <code>cordless group</code> · <code>cordless rename &lt;id&gt; &lt;title&gt;</code> · <code>cordless history</code> ·
+                <code>cordless notify test</code> · <code>cordless stop</code>.
+              </p>
+            </div>
           </div>
         </div>
-        <p style="color: var(--muted); font-size: 14px; margin-top: 14px">
-          <strong>Zero dependencies to install</strong> — the CLI binary bundles the Node runtime and
-          <code>node-pty</code>. Under the hood the daemon uses <code>node-pty</code>, <code>ws</code>,
-          <code>zod</code>, <code>@xterm/headless</code>, <code>@xterm/addon-serialize</code>,
-          <code>qrcode-terminal</code>; the phone app uses <code>@xterm/xterm</code>,
-          <code>react</code>/<code>vite</code>, and <code>@capacitor/*</code> — all pulled by
-          <code>npm run setup</code> if you build from source.
-        </p>
-      </section>
 
-      <section>
-        <h2>Install</h2>
-        <p style="color: var(--muted); max-width: 720px">
-          Two commands, about 30 seconds: <code>cordless setup</code> installs + starts the daemon, then
-          <code>cordless</code> shows a QR you scan with the phone. Here's the whole thing:
-        </p>
-        <a href="./assets/install/install.gif"><img src="./assets/install/install.gif" alt="cordless install: cordless setup, then cordless shows a pairing QR" style="width:100%; border:1px solid var(--line); border-radius:12px; margin:6px 0 10px; box-shadow:0 16px 50px rgba(0,0,0,.5)" /></a>
-        <h3>1 · Install cordless on your dev box / laptop</h3>
-        <p style="color: var(--muted)">
-          Download the self-contained <strong>cordless CLI</strong> from
-          <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a> and unpack it — it
-          bundles its own Node runtime <em>and</em> <code>node-pty</code>, so there's
-          <strong>nothing to install first</strong>.
-        </p>
-        <pre>Windows   cordless-cli-windows-x64.zip    →  run cordless.exe
-Linux     cordless-cli-linux-x64.tar.gz   →  run ./cordless
-macOS     use the desktop app, or build from source (CLI binary coming)</pre>
-        <p style="color: var(--muted)">Put it on your <code>PATH</code>, then just run it — or let cordless install itself in one step:</p>
-        <pre>cordless setup      # installs cordless to a stable path, adds it to PATH + autostart, and STARTS the daemon
-cordless            # opens the dashboard: daemon status + a pairing QR + your sessions
-cordless install    # (alternative) just register the daemon to run at login</pre>
-        <p style="color: var(--muted); font-size: 14px"><code>cordless setup</code> is the whole installer: it copies the binary to a stable location, adds it to your <code>PATH</code>, registers autostart, <strong>cleans up any older install</strong>, and starts the daemon. Open a <strong>new</strong> terminal and run <code>cordless</code>.</p>
-        <img src="./assets/install/install-setup.png" alt="cordless setup output: copied binary, added to PATH, registered autostart, started the daemon" style="width:100%; border:1px solid var(--line); border-radius:12px; margin:8px 0 4px" />
-        <h3>2 · Pair your phone</h3>
-        <p style="color: var(--muted)">
-          <code>cordless</code>'s starting screen shows a <strong>QR</strong>. Install the
-          <a href="https://github.com/naveenneog/cordless/releases/latest">Android app</a>, tap
-          <strong>Scan QR</strong>, and scan it. (Or press <code>p</code> for a fresh code, run
-          <code>cordless pair</code>, or open the printed URL in your phone's browser as a PWA.)
-        </p>
-        <img src="./assets/install/install-qr.png" alt="cordless dashboard with a pairing QR to scan with the phone app" style="width:100%; border:1px solid var(--line); border-radius:12px; margin:8px 0 4px" />
-        <h3>3 · From anywhere</h3>
-        <p style="color: var(--muted)">
-          Put the dev box <em>and</em> phone on the same <a href="https://tailscale.com">Tailscale</a> tailnet
-          and lock port 7443 to your own devices with a tailnet ACL. Then the pairing QR uses a stable
-          <code>100.x</code> / <code>*.ts.net</code> address. Never expose 7443 to the public internet.
-        </p>
-        <p style="color: var(--muted); font-size: 14px">
-          Manage it: <code>cordless status</code> · <code>cordless doctor</code> ·
-          <code>cordless sessions</code> · <code>cordless attach &lt;id&gt;</code> ·
-          <code>cordless resume</code> · <code>cordless profiles</code> ·
-          <code>cordless group</code> · <code>cordless rename &lt;id&gt; &lt;title&gt;</code> ·
-          <code>cordless history</code> · <code>cordless notify test</code> · <code>cordless stop</code>.
-        </p>
-        <details style="margin-top: 14px; color: var(--muted)">
-          <summary style="cursor: pointer">Prefer to run from source? (Node 22+)</summary>
-          <pre>git clone https://github.com/naveenneog/cordless
-cd cordless
-npm run setup      # installs agent + client deps (builds node-pty)
-npm run build      # builds the web client the daemon serves
-npm start          # starts the daemon on :7443  —  then run `node agent/src/index.js` for the dashboard
-
-npm --prefix agent run sea   # build a self-contained cordless binary into agent/dist-sea/</pre>
+        <details class="reveal">
+          <summary>Prefer to run from source? (Node 22+)</summary>
+          <div class="code" style="margin-bottom:10px">
+            <div class="term-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="ttl">from source</span></div>
+            <pre><span class="p">$</span> git clone https://github.com/naveenneog/cordless
+<span class="p">$</span> cd cordless
+<span class="p">$</span> npm run setup      <span class="cm"># installs agent + client deps (builds node-pty)</span>
+<span class="p">$</span> npm run build      <span class="cm"># builds the web client the daemon serves</span>
+<span class="p">$</span> npm start          <span class="cm"># daemon on :7443 — then `node agent/src/index.js` for the dashboard</span>
+<span class="p">$</span> npm --prefix agent run sea   <span class="cm"># build a self-contained binary into agent/dist-sea/</span></pre>
+          </div>
         </details>
       </section>
 
-      <section>
-        <h2>Desktop app (optional)</h2>
-        <p style="color: var(--muted); max-width: 720px">
-          The CLI is the primary way to run cordless — and the desktop app is a thin window over the
-          <strong>same local daemon the CLI runs</strong>, so <strong>install the CLI first</strong>
-          (<code>cordless setup</code>). Then a hardened <strong>Electron</strong> shell opens the same UI
-          on your laptop or dev box. Same sessions, tabs, groups, and replay as the phone — with a real
-          keyboard. If it opens to a "daemon isn't running" screen, it will find your installed CLI and
-          offer to start it (or point you to install it).
-        </p>
+      <section id="requirements">
+        <div class="sec-head reveal">
+          <p class="kicker">// requirements</p>
+          <h2>Basically nothing.</h2>
+        </div>
         <div class="grid">
-          <div class="card"><h3>QR-first auth</h3><p>Pairing stays QR/code based. The desktop adds one extra <strong>🖥️ Connect to this computer</strong> button backed by a loopback-only credential.</p></div>
-          <div class="card"><h3>Loopback only</h3><p>That credential lives in <code>~/.cordless/desktop-credential.json</code> (mode 0600) and is rejected for any non-loopback address — even a Tailscale IP. Never a remote bypass.</p></div>
-          <div class="card"><h3>Not running? No blank window</h3><p>If the daemon is down, the app shows a <strong>Start daemon / Retry</strong> screen instead of failing silently.</p></div>
+          <div class="card reveal"><h3>Dev box (runs cordless)</h3><p><strong>Nothing.</strong> The CLI is a self-contained binary (its own Node runtime + <code>node-pty</code>) for Windows or Linux. Optional: coding agents on <code>PATH</code> (<code>claude</code>, <code>codex</code>, <code>copilot</code>), or add your own launchers.</p></div>
+          <div class="card reveal"><h3>Phone</h3><p>Any modern browser (install the <strong>PWA</strong>), or Android 8.0+ for the <strong>APK</strong>. Nothing else to install.</p></div>
+          <div class="card reveal"><h3>Remote access (optional)</h3><p><a href="https://tailscale.com">Tailscale</a> on the dev box <em>and</em> phone for secure access from anywhere. Same-Wi-Fi LAN needs nothing extra.</p></div>
+          <div class="card reveal"><h3>Building from source</h3><p>Only if you build it yourself: <strong>Node ≥ 22</strong> and a C/C++ toolchain for <code>node-pty</code>; for the APK, add <strong>JDK 21</strong> + the <strong>Android SDK</strong>. Most people just grab the prebuilt binaries.</p></div>
         </div>
-        <p style="color: var(--muted); margin-top: 14px">
-          Grab an installer from
-          <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a>
-          (Windows <code>.exe</code>, macOS <code>.dmg</code>, Linux <code>.AppImage</code>/<code>.deb</code>),
-          or build it yourself:
+      </section>
+
+      <section id="desktop">
+        <div class="sec-head reveal">
+          <p class="kicker">// desktop</p>
+          <h2>A window over the same daemon.</h2>
+        </div>
+        <p class="lead-copy reveal">
+          The CLI is the primary way to run cordless — the desktop app is a thin, hardened <strong>Electron</strong>
+          window over the <strong>same local daemon the CLI runs</strong>, so <strong>install the CLI first</strong>
+          (<code>cordless setup</code>). Same sessions, tabs, groups, and replay as the phone — with a real keyboard.
+          If it opens to a "daemon isn't running" screen, it finds your installed CLI and offers to start it.
         </p>
-        <pre>cd desktop
-npm install
-npm start          # run against your local daemon
-npm run dist       # package installers into desktop/release/</pre>
+        <div class="grid" style="margin-top:22px">
+          <div class="card reveal"><h3>QR-first auth</h3><p>Pairing stays QR/code based. The desktop adds one <strong>🖥️ Connect to this computer</strong> button backed by a loopback-only credential.</p></div>
+          <div class="card reveal"><h3>Loopback only</h3><p>That credential lives in <code>~/.cordless/desktop-credential.json</code> (mode 0600) and is rejected for any non-loopback address — even a Tailscale IP.</p></div>
+          <div class="card reveal"><h3>Never a blank window</h3><p>If the daemon is down, the app shows a <strong>Start daemon / Retry</strong> screen instead of failing silently.</p></div>
+        </div>
+        <p class="lead-copy reveal" style="margin-top:20px">
+          Grab an installer from <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a>
+          (Windows <code>.exe</code>, macOS <code>.dmg</code>, Linux <code>.AppImage</code>/<code>.deb</code>).
+        </p>
       </section>
 
-      <section>
-        <h2>On your phone</h2>
-        <div class="shots">
-          <img src="./screenshot-pairing.png" alt="pairing screen" />
-          <img src="./screenshot-keybar.png" alt="terminal with touch key bar" />
+      <section id="phone">
+        <div class="sec-head reveal">
+          <p class="kicker">// on your phone</p>
+          <h2>The whole terminal, one thumb.</h2>
+        </div>
+        <div class="shots reveal">
+          <img src="./screenshot-pairing.png" alt="cordless phone app: pairing screen" loading="lazy" />
+          <img src="./screenshot-keybar.png" alt="cordless phone app: a terminal session with the touch key bar" loading="lazy" />
         </div>
       </section>
 
-      <section>
-        <div class="note">
-          <strong>Security:</strong> a paired device has the same shell access as your user account — treat its
-          token like an SSH key. cordless uses per-device hashed tokens, single-use rate-limited pairing, an
-          Origin allowlist, and strict security headers, and never runs as root. The desktop app's local
-          shortcut uses a loopback-scoped token that is rejected for any non-loopback address. Keep port 7443
-          off the public internet; use Tailscale + an ACL.
+      <section id="security">
+        <div class="note reveal">
+          <strong>Security.</strong> A paired device has the same shell access as your user account — treat its token
+          like an SSH key. cordless uses per-device hashed tokens, single-use rate-limited pairing, an Origin
+          allowlist, and strict security headers, and never runs as root. The desktop app's local shortcut uses a
+          loopback-scoped token that is rejected for any non-loopback address. Keep port 7443 off the public
+          internet; use Tailscale + an ACL.
         </div>
       </section>
     </div>
 
     <footer>
       <div class="wrap">
-        <a href="https://github.com/naveenneog/cordless">github.com/naveenneog/cordless</a>
-        &nbsp;·&nbsp; <a href="https://github.com/naveenneog/cordless/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a>
-        (source-available)
+        <div class="foot">
+          <span class="fbrand">
+            <svg width="34" height="21" viewBox="0 0 64 40" fill="none" aria-hidden="true">
+              <path class="lg" d="M8 8 L26 20 L8 32" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+              <path class="lg" d="M56 8 L38 20 L56 32" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+              <path class="lg" d="M27 33 L37 33" stroke-width="5" stroke-linecap="round" />
+            </svg>
+            cordless — remote terminals, in your pocket.
+          </span>
+          <span>
+            <a href="https://github.com/naveenneog/cordless">GitHub</a> ·
+            <a href="https://github.com/naveenneog/cordless/releases/latest">Releases</a> ·
+            <a href="https://naveenneog.github.io/AI4Good/">Blog</a> ·
+            PolyForm Noncommercial
+          </span>
+        </div>
       </div>
     </footer>
+
+    <script>
+      // Scroll-reveal (progressive enhancement; content is always in the DOM).
+      (function () {
+        var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var els = document.querySelectorAll(".reveal");
+        if (reduce || !("IntersectionObserver" in window)) {
+          els.forEach(function (e) { e.classList.add("in"); });
+        } else {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (en) {
+                if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+              });
+            },
+            { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
+          );
+          els.forEach(function (e) { io.observe(e); });
+        }
+
+        // Play the hero terminal's staged reveal once it scrolls into view.
+        var term = document.getElementById("hero-term");
+        if (term) {
+          if (reduce) { term.classList.add("go"); }
+          else {
+            var io2 = new IntersectionObserver(function (entries) {
+              entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("go"); io2.unobserve(en.target); } });
+            }, { threshold: 0.4 });
+            io2.observe(term);
+          }
+        }
+      })();
+    </script>
   </body>
 </html>
