@@ -3,7 +3,31 @@
 Read this to resume building cordless. It captures the architecture, protocol, key files, design
 decisions (made in tandem with GPT-5.6 Sol), security model, how to run/test, and the backlog.
 
-## v0.9.0 — accurate `start` diagnosis + in-CLI help (current)
+## v0.9.0 UX fixes (repushed into the same 0.9.0, current)
+
+Four fixes folded into a **0.9.0 repush** (Chocolatey allows re-pushing an unapproved version, so no
+version bump — re-tagged v0.9.0 at the fixed HEAD, CI rebuilt every asset, choco repushed):
+
+- `fix/dashboard-o-newtab` — the dashboard **`o` key now opens a session in a new tab**. Bug: the key
+  switch had `case "o"` grouped with Enter, so it attached in place and the dedicated
+  `openInNewTerminal` handler below was unreachable dead code. Removed `o` from the Enter group. Also
+  default the new wt tab title to the brand mark **`>_<`** (renamed sessions append their sanitized
+  title); `>_<` is a trusted literal only in the wt argv path (never the shell fallback).
+- `feature/app-agent-icons` — the phone/web client shows agents as **colored icon badges instead of
+  names** (shell `>_`, Claude `✳`, Codex `❋`, GitHub Copilot `◉`) in the tabs + new-session picker, and
+  **adds GitHub Copilot** (the daemon already had the `copilot` profile in `state.js:76`; the client's
+  PROFILES was missing it). `client/src/lib/protocol.ts` (glyph+color+`agentMeta`),
+  `components/AgentIcon.tsx`, `NewSessionSheet.tsx`, `TabStrip.tsx`.
+- `fix/keybar-scroll` — the on-screen **key bar now scrolls horizontally** so Esc/Tab/arrows/^C/^D are
+  all reachable on a narrow phone. The first `.keyrow` wasn't a scroll container; made every `.keyrow`
+  `overflow-x:auto` + `touch-action:pan-x` (keys `preventDefault` pointerdown, so pan-x is required for
+  touch scroll).
+- `ci/choco-auto-publish` — `choco-publish.yml` is now a **reusable workflow** (`workflow_call` +
+  `workflow_dispatch`) called from `cli.yml` (`publish-choco`, `needs: build`, tags only,
+  `secrets: inherit`). The old `release: published` trigger never fired (CI's GITHUB_TOKEN doesn't start
+  workflow runs), so now `git push --tags` builds AND publishes to Chocolatey hands-free.
+
+## v0.9.0 — accurate `start` diagnosis + in-CLI help
 
 Two per-feature branches, then released as 0.9.0 (the choco-ready, self-documenting release):
 
