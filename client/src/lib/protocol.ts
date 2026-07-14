@@ -70,11 +70,19 @@ export type ServerFrame = OutputFrame | ExitFrame | HelloResult | GenericResult;
 export interface ProfileInfo {
   id: string;
   label: string;
+  glyph: string; // short icon glyph shown in a colored badge (icons instead of names)
+  color: string; // brand-ish accent for the badge
 }
 
-// Profiles are fixed in the MVP agent config.
+// Built-in launch profiles, shown as colored icon badges in the app.
 export const PROFILES: ProfileInfo[] = [
-  { id: "shell", label: "Shell" },
-  { id: "claude", label: "Claude Code" },
-  { id: "codex", label: "Codex" },
+  { id: "shell", label: "Shell", glyph: ">_", color: "#6b7280" },
+  { id: "claude", label: "Claude Code", glyph: "✳", color: "#d97757" },
+  { id: "codex", label: "Codex", glyph: "❋", color: "#10a37f" },
+  { id: "copilot", label: "GitHub Copilot", glyph: "◉", color: "#2f81f7" },
 ];
+
+// Icon/label for a session's profile (falls back to a generic shell badge for unknown/custom ones).
+export function agentMeta(id: string): ProfileInfo {
+  return PROFILES.find((p) => p.id === id) || { id, label: id || "shell", glyph: ">_", color: "#6b7280" };
+}

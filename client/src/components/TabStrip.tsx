@@ -1,6 +1,7 @@
 import type { TabView } from "../lib/connection";
 import type { SessionGroup } from "../lib/protocol";
 import { groupColor } from "../lib/groupColor";
+import { AgentIcon } from "./AgentIcon";
 
 // Chrome-mobile-style group/filter chips + the tab strip. The chips filter which tabs are shown:
 // All, Unread (the phone's attention proxy), then one chip per group.
@@ -68,7 +69,7 @@ export function TabStrip({
               }}
             >
               {g && <span className="groupdot" style={{ background: groupColor(g.color) }} title={g.name} />}
-              <span className={"dot " + t.state} />
+              <AgentIcon profile={t.profile} size={16} />
               <span className="tabtitle">{t.title}</span>
               {t.unread && !t.active && <span className="unread" />}
               <span
