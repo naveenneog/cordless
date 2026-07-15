@@ -97,12 +97,19 @@ then `scripts/verify-package.js` (fails the pack unless public/index.html + hash
 ship a UI-less daemon). `service.js` `installService()` guards the ephemeral npx cache (`…/_npx/…`) and
 points the user to `npm i -g cordless-cli` for autostart. Publish:
 `.github/workflows/npm-publish.yml` (reusable — called by cli.yml `publish-npm` on tags + manual
-`gh workflow run "Publish to npm"`) publishes it with npm provenance (OIDC `id-token: write`, added to
-cli.yml perms) using secret **`NPM_TOKEN`**. **Not yet published** — needs the user's `NPM_TOKEN`
-(npm account `naveenneog`, an Automation classic token). Verified locally end-to-end
-(pack→install→`--once`/QR→PTY spawn→stop). Landing page + README lead install with `npx cordless-cli`.
-Consulted Sol (turn 30). (A scoped `@naveenneog/cordless` was built first then dropped; public scoped
-packages don't actually need an org, but unscoped is simpler.)
+`gh workflow run "Publish to npm"`). **PUBLISHED — `cordless-cli@0.9.0` is live on npm** (npmjs.com,
+account `naveenneog`) with provenance (sigstore logIndex 2172229616). `npx cordless-cli` works.
+Bootstrap publish used a one-time npm **Granular** token (Read+Write / All packages — a Classic
+*Publish* token 403s under 2FA, and "Only select packages" can't grant write to a not-yet-existing
+package); that token has since been **revoked**. The workflow is now **token-free via npm Trusted
+Publishing (OIDC)**: no `NPM_TOKEN`, `npm publish` alone, provenance automatic. Requires npm ≥ 11.5.1
+(the workflow does `npm i -g npm@latest` because node 22 ships npm 10.x) and `id-token: write` on the
+calling job (set in cli.yml). The Trusted Publisher is configured on npmjs.com → cordless-cli →
+Settings → Trusted Publisher (GitHub Actions, `naveenneog/cordless`, workflow `npm-publish.yml`). npm
+has **no PyPI-style pending-publisher**, so the first publish HAD to use a token before OIDC could be
+turned on. Landing page + README lead install with `npx cordless-cli`. Consulted Sol (turn 30). (A
+scoped `@naveenneog/cordless` was built first then dropped; public scoped packages don't actually need
+an org, but unscoped is simpler.)
 
 
 ## v0.8.3 — open sessions in new terminal tabs
