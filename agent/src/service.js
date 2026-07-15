@@ -99,7 +99,7 @@ export function installService() {
   if (runningFromNpxCache()) {
     console.log("cordless is running from a temporary npx cache — autostart needs a stable install.");
     console.log("  Install the command globally, then register autostart:");
-    console.log("    npm i -g @naveenneog/cordless");
+    console.log("    npm i -g cordless-cli");
     console.log("    cordless install");
     console.log("  (Or grab the self-contained binary: https://github.com/naveenneog/cordless/releases/latest)");
     return;

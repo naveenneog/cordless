@@ -84,7 +84,7 @@ jobs:
       version: ${{ github.ref_name }}
     secrets: inherit
 
-  # On a tag build, publish @naveenneog/cordless + the cordless-cli alias to npm (provenance via OIDC).
+  # On a tag build, publish the cordless-cli package to npm (provenance via OIDC).
   # Requires the NPM_TOKEN repo secret; skipped on non-tag builds.
   publish-npm:
     needs: build

@@ -16,10 +16,10 @@ tabs for your terminal.
 
 ```bash
 # try it without installing
-npx @naveenneog/cordless          # opens the dashboard + a pairing QR
+npx cordless-cli          # opens the dashboard + a pairing QR
 
 # or install the command globally
-npm install -g @naveenneog/cordless
+npm install -g cordless-cli
 cordless                           # dashboard + pairing QR
 ```
 
@@ -41,7 +41,7 @@ prebuilt binaries for common platforms (Windows / macOS / Linux, x64 / arm64) â€
 needs Python and a C/C++ toolchain.
 
 > **Tip:** `npx` runs from a temporary cache â€” great for trying cordless or one-off use. For a daemon
-> that autostarts at login, install globally (`npm i -g @naveenneog/cordless`) then run `cordless install`.
+> that autostarts at login, install globally (`npm i -g cordless-cli`) then run `cordless install`.
 > A self-contained binary (no Node needed), a Chocolatey package, a desktop app, and an Android APK are
 > also on the [releases page](https://github.com/naveenneog/cordless/releases/latest).
 
