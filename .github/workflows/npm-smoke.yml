@@ -1,0 +1,57 @@
+name: npm smoke test
+
+# Installs the PUBLISHED cordless-cli from the public npm registry on clean
+# runners (Linux/Windows/macOS) and verifies it actually runs: the `npm i -g`
+# step exercises the node-pty prebuild resolution (no compiler needed), and the
+# CLI invocations confirm the `cordless` bin resolves and boots. This is the real
+# end-user `npm i -g` / `npx` path — the dev box sits behind a corp proxy that
+# doesn't mirror the public package, so we verify it here.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "version or dist-tag to test (e.g. 0.9.0 or latest)"
+        default: "latest"
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "latest"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: npm install -g cordless-cli
+        shell: bash
+        run: npm install -g "cordless-cli@${{ inputs.version || 'latest' }}"
+
+      - name: cordless --version
+        shell: bash
+        run: |
+          OUT=$(cordless --version)
+          echo "$OUT"
+          echo "$OUT" | grep -qi "cordless v" || { echo "unexpected --version output"; exit 1; }
+
+      - name: cordless --help
+        shell: bash
+        run: |
+          OUT=$(cordless --help)
+          echo "$OUT"
+          echo "$OUT" | grep -qi "cordless" || { echo "unexpected --help output"; exit 1; }
+
+      - name: npx cordless-cli --version (fresh cache)
+        shell: bash
+        run: npx -y "cordless-cli@${{ inputs.version || 'latest' }}" --version
