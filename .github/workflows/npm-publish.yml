@@ -1,0 +1,77 @@
+name: Publish to npm
+
+# Publishes @naveenneog/cordless (canonical) and cordless-cli (thin alias) to npm.
+# Triggers:
+#   - workflow_call: invoked by the CLI build (cli.yml) after a tag build, for hands-free publishing.
+#   - workflow_dispatch: run manually (e.g. the first publish).
+# Auth: an NPM_TOKEN secret (an npm automation/granular-write token). Provenance is attached via the
+# GitHub OIDC id-token; once the packages exist you can switch to npm Trusted Publishing and drop the
+# token.
+on:
+  workflow_call:
+    secrets:
+      NPM_TOKEN:
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Guard the npm token
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "NPM_TOKEN secret is not set. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Resolve version + match the tag
+        id: ver
+        run: |
+          PKG=$(node -p "require('./agent/package.json').version")
+          REF="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${REF}" != "${PKG}" ]; then
+            echo "tag ${REF} != agent/package.json ${PKG}"; exit 1
+          fi
+          echo "version=${PKG}" >> "$GITHUB_OUTPUT"
+          echo "Publishing cordless ${PKG}"
+
+      - name: Install deps
+        run: |
+          npm --prefix client ci
+          npm --prefix agent ci
+
+      - name: Publish @naveenneog/cordless
+        working-directory: agent
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Sync the alias to the canonical version
+        working-directory: packaging/npm/cordless-cli
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          npm version "$V" --no-git-tag-version --allow-same-version
+          npm pkg set "dependencies.@naveenneog/cordless=$V"
+
+      - name: Publish cordless-cli (alias)
+        working-directory: packaging/npm/cordless-cli
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Done
+        run: echo "Published @naveenneog/cordless@${{ steps.ver.outputs.version }} and cordless-cli."

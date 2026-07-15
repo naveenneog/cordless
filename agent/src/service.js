@@ -96,9 +96,25 @@ export function stopDaemon() {
 
 export function installService() {
   ensureHome();
+  if (runningFromNpxCache()) {
+    console.log("cordless is running from a temporary npx cache — autostart needs a stable install.");
+    console.log("  Install the command globally, then register autostart:");
+    console.log("    npm i -g @naveenneog/cordless");
+    console.log("    cordless install");
+    console.log("  (Or grab the self-contained binary: https://github.com/naveenneog/cordless/releases/latest)");
+    return;
+  }
   if (process.platform === "win32") return installWindows();
   if (process.platform === "darwin") return installMac();
   return installLinux();
+}
+
+// True when cordless is executing from an ephemeral npx cache (…/_npx/…): its path is not a durable
+// install location, so registering login-autostart against it would break once the cache is cleared.
+function runningFromNpxCache() {
+  if (IS_SEA) return false;
+  const p = ENTRY.replace(/\\/g, "/").toLowerCase();
+  return p.includes("/_npx/") || p.includes("/npm-cache/_npx");
 }
 
 export function uninstallService() {

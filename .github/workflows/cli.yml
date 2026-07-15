@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write # for npm publish provenance (publish-npm)
 
 jobs:
   build:
@@ -82,3 +83,12 @@ jobs:
     with:
       version: ${{ github.ref_name }}
     secrets: inherit
+
+  # On a tag build, publish @naveenneog/cordless + the cordless-cli alias to npm (provenance via OIDC).
+  # Requires the NPM_TOKEN repo secret; skipped on non-tag builds.
+  publish-npm:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/npm-publish.yml
+    secrets: inherit
+
