@@ -1,29 +1,67 @@
 {
-  "name": "cordlessd",
+  "name": "@naveenneog/cordless",
   "version": "0.9.0",
-  "private": true,
   "type": "module",
-  "description": "cordless agent daemon — manages remote PTY/coding-agent sessions",
+  "description": "A CLI-first remote terminal — run cordless, scan the QR, and drive many Claude Code / Codex / GitHub Copilot / shell sessions from your phone.",
+  "keywords": [
+    "terminal",
+    "pty",
+    "node-pty",
+    "remote-terminal",
+    "cli",
+    "dashboard",
+    "claude-code",
+    "codex",
+    "github-copilot",
+    "tailscale",
+    "qr",
+    "mobile",
+    "pwa",
+    "tmux-alternative"
+  ],
+  "homepage": "https://naveenneog.github.io/cordless/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naveenneog/cordless.git",
+    "directory": "agent"
+  },
+  "bugs": {
+    "url": "https://github.com/naveenneog/cordless/issues"
+  },
+  "author": "Naveen (https://github.com/naveenneog)",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "bin": {
     "cordless": "src/index.js"
+  },
+  "files": [
+    "src/",
+    "public/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "start": "node src/index.js start",
     "pair": "node src/index.js pair",
     "devices": "node src/index.js devices",
     "test": "node test/run.mjs",
-    "sea": "node build/sea.mjs"
+    "sea": "node build/sea.mjs",
+    "build:public": "npm --prefix ../client run build",
+    "prepack": "npm run build:public && node scripts/verify-package.js"
   },
   "dependencies": {
     "@xterm/addon-serialize": "^0.13.0",
     "@xterm/headless": "^5.5.0",
-    "node-pty": "^1.0.0",
+    "node-pty": "1.1.0",
     "qrcode-terminal": "^0.12.0",
     "ws": "^8.18.0",
     "zod": "^3.24.1"
-  },
-  "engines": {
-    "node": ">=20"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
