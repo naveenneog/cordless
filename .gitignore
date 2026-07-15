@@ -50,3 +50,7 @@ tooling/sol.local.json
 # electron-builder output
 desktop/release/
 tooling/_sol_*.txt
+
+# LinkedIn promo render (local artifacts)
+/promo/
+
