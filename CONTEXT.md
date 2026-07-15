@@ -111,6 +111,23 @@ turned on. Landing page + README lead install with `npx cordless-cli`. Consulted
 scoped `@naveenneog/cordless` was built first then dropped; public scoped packages don't actually need
 an org, but unscoped is simpler.)
 
+**npm install verified** by `.github/workflows/npm-smoke.yml` (`gh workflow run "npm smoke test"`,
+matrix ubuntu/windows/macos): `npm i -g cordless-cli` + `cordless --version`/`--help` +
+`npx cordless-cli --version` all green on 0.9.0 (the dev box is behind a corp npm proxy that 404s the
+public package and can't reach registry.npmjs.org, so the install can only be tested on CI runners).
+
+## Landing page hero — "CLI → mobile takeover" animation
+
+`docs/index.html` hero right column is a self-contained CSS/JS **handoff-stage animation** (`.dstage`,
+storyboard by Sol turn 32): a dev-box terminal (back/left) boots `npx cordless-cli`, pairs a phone
+(QR + scanner), reveals a session dashboard, then the phone (front/right) **takes over** the Codex
+session via one synchronized pulse — the terminal row flips to `working · phone` and the phone drives
+the live prompt/output. Plays once on scroll (IntersectionObserver `#demo`), holds the final state, has
+a `↻ replay` button. Pure transform/opacity; base CSS = the final state (no-JS safe), `.js .dstage`
+sets the pre-animation state, `.dstage.go` drives it; `prefers-reduced-motion` shows the end state.
+Verified via Playwright at all beats + mobile + reduced-motion (0 console errors). Session statuses use
+fixed-width columns so the phone overlap never hides `working · phone`.
+
 
 ## v0.8.3 — open sessions in new terminal tabs
 

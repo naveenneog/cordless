@@ -306,6 +306,184 @@
       .term-body.go [data-step="7"] { animation-delay: 3.25s; }
       @keyframes stepIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
+      /* ============================================================
+         HERO DEMO — "cordless CLI -> mobile app takeover"
+         One handoff stage: dev-box terminal (back/left) + phone (front/right).
+         Plays once on scroll; holds the final state; Replay button restarts it.
+         Pure transform/opacity; prefers-reduced-motion shows the end state.
+         ============================================================ */
+      .dstage {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1.16 / 1;
+        contain: layout;
+      }
+      .dstage * { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+      /* dev-box terminal window (back/left) */
+      .dterm {
+        position: absolute;
+        left: 0; top: 4%;
+        width: 74%;
+        border-radius: 13px;
+        border: 1px solid var(--line2);
+        background: linear-gradient(180deg, #0c1019, #090c13);
+        box-shadow: var(--shadow), var(--glow);
+        overflow: hidden;
+        transition: filter 0.6s var(--ease-out), opacity 0.6s var(--ease-out);
+      }
+      .dbar { display: flex; align-items: center; gap: 7px; padding: 9px 12px; background: rgba(140, 160, 200, 0.05); border-bottom: 1px solid var(--line); }
+      .dbar i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+      .dbar .ttl { margin-left: 7px; font-size: 11px; color: var(--faint); }
+      .dbody { position: relative; padding: 13px 14px; font-size: 12px; line-height: 1.7; min-height: 0; }
+      .dl { display: block; white-space: pre; }
+      .dl .p { color: var(--green); } .dl .cmd { color: #eaf0fb; } .dl .cm { color: var(--faint); } .dl .ok { color: var(--green); }
+      .don { color: var(--green); }
+      /* the terminal middle region holds two cross-fading groups in one place */
+      .dmid { position: relative; margin-top: 3px; min-height: 168px; }
+      .dgrp { position: absolute; inset: 0; }
+      .dgrp-pair { opacity: 0; } /* final state: pairing done, group hidden */
+      .dqr { display: grid; grid-template-columns: repeat(11, 1fr); gap: 2px; width: 82px; margin: 7px 0; }
+      .dqr i { aspect-ratio: 1; background: #cdd6e8; border-radius: 1px; }
+      .dqr i.o { background: transparent; }
+      .drow { display: flex; align-items: center; gap: 9px; padding: 2.5px 4px; border-radius: 6px; position: relative; }
+      .drow .sd { width: 19px; height: 19px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex: 0 0 auto; }
+      .drow .nm { color: #cfd8ea; width: 56px; white-space: nowrap; } .drow .cx { color: var(--faint); width: 52px; white-space: nowrap; }
+      .drow .st { margin-left: 6px; font-size: 11px; }
+      .st.working { color: var(--green); } .st.waiting { color: var(--amber); } .st.idle { color: var(--faint); }
+      .drow.codex .rowhi { position: absolute; inset: 0; border-radius: 6px; background: rgba(122, 162, 247, 0.14); box-shadow: inset 0 0 0 1px rgba(122, 162, 247, 0.4); } /* final: highlighted */
+      .flip { position: relative; }
+      .flip .a, .flip .b { display: inline-block; }
+      .flip .a { opacity: 0; } /* final: hidden (working·phone is shown) */
+      .flip .b { position: absolute; right: 0; top: 0; white-space: nowrap; color: var(--green); }
+
+      /* phone (front/right) — base = final resting state */
+      .dphone {
+        position: absolute;
+        right: 0; bottom: 1%;
+        width: 39%;
+        aspect-ratio: 0.495 / 1;
+        border-radius: 26px;
+        padding: 7px;
+        background: linear-gradient(160deg, #1a2130, #0b0e16);
+        box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+        z-index: 3;
+      }
+      .dscreen { position: relative; width: 100%; height: 100%; border-radius: 19px; overflow: hidden; background: radial-gradient(120% 90% at 50% 0%, #0f1420, #080b11); }
+      .dnotch { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 34%; height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.55); z-index: 5; }
+      /* phone: scanner state (transient) */
+      .dscan { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; opacity: 0; }
+      .dscan .frame { width: 54%; aspect-ratio: 1; border-radius: 12px; position: relative; }
+      .dscan .frame::before, .dscan .frame::after { content: ""; position: absolute; width: 22%; height: 22%; border: 2px solid var(--green); }
+      .dscan .frame::before { left: 0; top: 0; border-right: 0; border-bottom: 0; border-radius: 6px 0 0 0; }
+      .dscan .frame::after { right: 0; bottom: 0; border-left: 0; border-top: 0; border-radius: 0 0 6px 0; }
+      .dscan .lbl { font-size: 9.5px; color: var(--faint); }
+      /* phone: app state (final) */
+      .dapp { position: absolute; inset: 0; display: flex; flex-direction: column; }
+      .dpaired { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--green); opacity: 0; }
+      .dtabs { display: flex; gap: 4px; padding: 16px 7px 7px; border-bottom: 1px solid var(--line); }
+      .dtab { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; position: relative; border: 1px solid transparent; }
+      .dtab.first { font-size: 9px; letter-spacing: -0.5px; }
+      .dtab .att { position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); border: 1.5px solid #0b0e16; }
+      .dtab .tabhi { position: absolute; inset: -1px; border-radius: 6px; box-shadow: 0 0 0 1.5px var(--blue), 0 0 12px -2px var(--blue); } /* final: codex active */
+      .dpbody { flex: 1; padding: 10px 9px; font-size: 10px; line-height: 1.6; }
+      .dpbody .hd { color: #cfd8ea; } .dpbody .cm { color: var(--faint); }
+      .dprompt .opt { display: block; color: var(--muted); padding-left: 8px; position: relative; }
+      .dprompt .opt.yes { color: #eaf0fb; }
+      .dprompt .opt.yes .sel { position: absolute; inset: -1px -4px; border-radius: 4px; background: rgba(158, 206, 106, 0.16); box-shadow: inset 0 0 0 1px rgba(158, 206, 106, 0.5); } /* final: Yes selected */
+      .dpout { margin-top: 6px; } .dpout .ok { color: var(--green); } .dpout .cm { color: var(--faint); }
+      .dpcur { display: inline-block; width: 6px; height: 1em; background: var(--green); vertical-align: -2px; }
+      .tcur { display: inline-block; width: 6px; height: 1.05em; background: var(--blue); vertical-align: -2px; margin-left: 4px; opacity: 0; } /* final: terminal cursor handed off */
+
+      /* connector + travelling pulse (the single "takeover" gesture) */
+      .dconn { position: absolute; left: 60%; top: 51%; width: 86px; height: 2px; opacity: 0; z-index: 2;
+        background: repeating-linear-gradient(90deg, rgba(122,162,247,0.5) 0 5px, transparent 5px 10px); }
+      .dpulse { position: absolute; left: 60%; top: calc(51% - 3px); width: 8px; height: 8px; border-radius: 50%; z-index: 2;
+        background: var(--blue); box-shadow: 0 0 10px 2px rgba(122, 162, 247, 0.8); opacity: 0; }
+
+      /* caption + replay */
+      .dcap { position: absolute; left: 2px; bottom: -26px; font-size: 11px; color: var(--faint); opacity: 0; }
+      .dcap b { color: var(--muted); font-weight: 500; }
+      .dreplay {
+        position: absolute; right: 0; bottom: -30px;
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--faint);
+        background: rgba(140, 160, 200, 0.06); border: 1px solid var(--line); border-radius: 8px;
+        padding: 5px 10px; cursor: pointer; opacity: 0;
+        transition: color 0.16s var(--ease-out), border-color 0.16s var(--ease-out), opacity 0.4s var(--ease-out);
+      }
+      .dreplay:hover { color: var(--fg); border-color: var(--blue); }
+
+      /* ---- JS present: start from the pre-animation composition; .go drives it forward ---- */
+      .js .dstage .b1, .js .dstage .b2, .js .dstage .b3,
+      .js .dstage .pp1, .js .dstage .pp2, .js .dstage .pp3,
+      .js .dstage .dgrp-dash, .js .dstage .drow, .js .dstage .dqr,
+      .js .dstage .rowhi, .js .dstage .flip .b,
+      .js .dstage .dapp, .js .dstage .dtab.codex .tabhi,
+      .js .dstage .dprompt, .js .dstage .dprompt .sel,
+      .js .dstage .dpout, .js .dstage .dpcur,
+      .js .dstage .dcap, .js .dstage .dreplay { opacity: 0; }
+      .js .dstage .dgrp-pair { opacity: 1; }                  /* visible while pairing plays */
+      .js .dstage .flip .a, .js .dstage .tcur { opacity: 1; } /* the session starts on the dev box */
+      .js .dstage .dphone { opacity: 0.5; transform: translateY(16px) scale(0.985); filter: grayscale(0.55) brightness(0.72); }
+      .js .dstage:not(.go) .dreplay { pointer-events: none; }
+
+      /* ---- the timeline: animations run once .go is added ---- */
+      .dstage.go .dphone { animation: dPhoneRise 0.9s var(--ease-out) 1.2s forwards; }
+      .dstage.go .dterm.dim { animation: dTermDim 0.7s var(--ease-out) 6.6s forwards; }
+      .dstage.go .b1 { animation: dUp 0.5s var(--ease-out) 0.2s forwards; }
+      .dstage.go .b2 { animation: dUp 0.5s var(--ease-out) 0.7s forwards; }
+      .dstage.go .b3 { animation: dUp 0.5s var(--ease-out) 1.0s forwards; }
+      /* pairing group: children reveal, then the whole group cross-fades out at ~4.5s */
+      .dstage.go .dgrp-pair { animation: dGrpOut 4.7s linear 0s forwards; }
+      .dstage.go .dgrp-pair .pp1 { animation: dUp 0.5s var(--ease-out) 1.5s forwards; }
+      .dstage.go .dgrp-pair .pp2 { animation: dUp 0.5s var(--ease-out) 1.8s forwards; }
+      .dstage.go .dgrp-pair .dqr { animation: dQr 0.6s var(--ease-out) 2.0s forwards; }
+      .dstage.go .dgrp-pair .pp3 { animation: dUp 0.5s var(--ease-out) 3.6s forwards; }
+      /* dashboard group: fades in at 4.6s and stays */
+      .dstage.go .dgrp-dash { animation: dUp 0.6s var(--ease-out) 4.6s forwards; }
+      .dstage.go .dgrp-dash .r1 { animation: dUp 0.45s var(--ease-out) 4.9s forwards; }
+      .dstage.go .dgrp-dash .r2 { animation: dUp 0.45s var(--ease-out) 5.1s forwards; }
+      .dstage.go .dgrp-dash .r3 { animation: dUp 0.45s var(--ease-out) 5.3s forwards; }
+      .dstage.go .dgrp-dash .r4 { animation: dUp 0.45s var(--ease-out) 5.5s forwards; }
+      /* takeover — one synchronized session pulse from terminal to phone */
+      .dstage.go .rowhi { animation: dHi 0.5s var(--ease-out) 6.3s forwards; }
+      .dstage.go .dconn { animation: dFlash 1.4s var(--ease-out) 6.2s forwards; }
+      .dstage.go .dpulse { animation: dPulse 0.95s var(--ease-in-out) 6.35s forwards; }
+      .dstage.go .flip .a { animation: dOut 0.35s var(--ease-out) 6.8s forwards; }
+      .dstage.go .flip .b { animation: dUp 0.4s var(--ease-out) 7.05s forwards; }
+      .dstage.go .tcur { animation: dOut 0.35s var(--ease-out) 6.9s forwards; }
+      /* phone screens */
+      .dstage.go .dscan { animation: dFlash 2.1s var(--ease-out) 1.9s forwards; }
+      .dstage.go .dpaired { animation: dFlash 0.7s var(--ease-out) 4.0s forwards; }
+      .dstage.go .dapp { animation: dUp 0.6s var(--ease-out) 4.6s forwards; }
+      .dstage.go .dtab.codex .tabhi { animation: dHi 0.5s var(--ease-out) 7.0s forwards; }
+      .dstage.go .dprompt { animation: dUp 0.5s var(--ease-out) 7.3s forwards; }
+      .dstage.go .dprompt .sel { animation: dHi 0.4s var(--ease-out) 8.5s forwards; }
+      .dstage.go .dpout { animation: dUp 0.5s var(--ease-out) 9.1s forwards; }
+      .dstage.go .dpcur { animation: dBlink 1s steps(1) 9.4s infinite; }
+      .dstage.go .dcap { animation: dUp 0.6s var(--ease-out) 10.2s forwards; }
+      .dstage.go .dreplay { animation: dUp 0.5s var(--ease-out) 10.6s forwards; }
+
+      @keyframes dUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @keyframes dOut { from { opacity: 1; } to { opacity: 0; } }
+      @keyframes dQr { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+      @keyframes dGrpOut { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes dFlash { 0% { opacity: 0; } 14% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes dHi { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes dPhoneRise {
+        from { opacity: 0.5; transform: translateY(16px) scale(0.985); filter: grayscale(0.55) brightness(0.72); }
+        to { opacity: 1; transform: none; filter: none; }
+      }
+      @keyframes dTermDim { to { filter: brightness(0.82) saturate(0.9); opacity: 0.9; } }
+      @keyframes dPulse {
+        0% { opacity: 0; transform: translateX(0); }
+        18% { opacity: 1; }
+        82% { opacity: 1; }
+        100% { opacity: 0; transform: translateX(84px); }
+      }
+      @keyframes dBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
       /* ---------- sections ---------- */
       section { padding: 58px 0; position: relative; z-index: 2; }
       .sec-head { max-width: 760px; margin-bottom: 30px; }
@@ -427,6 +605,32 @@
         .js .reveal { opacity: 1; transform: none; }
         .js .term-body [data-step] { opacity: 1; }
         .cur { animation: none; }
+        /* hero demo: show the final composition instantly, no motion */
+        .dstage *, .dstage *::before, .dstage *::after { animation: none !important; }
+        .js .dstage .b1, .js .dstage .b2, .js .dstage .b3,
+        .js .dstage .dgrp-dash, .js .dstage .drow,
+        .js .dstage .rowhi, .js .dstage .flip .b,
+        .js .dstage .dapp, .js .dstage .dtab.codex .tabhi,
+        .js .dstage .dprompt, .js .dstage .dprompt .sel,
+        .js .dstage .dpout, .js .dstage .dpcur,
+        .js .dstage .dcap, .js .dstage .dreplay { opacity: 1; }
+        .js .dstage .dgrp-pair, .js .dstage .flip .a, .js .dstage .tcur,
+        .js .dstage .dqr, .js .dstage .dscan, .js .dstage .dpaired,
+        .js .dstage .dconn, .js .dstage .dpulse { opacity: 0; }
+        .js .dstage .dphone { opacity: 1; transform: none; filter: none; }
+      }
+      /* on very narrow screens the phone sits close to the terminal — drop the connector line
+         (the synced row/tab highlights still read as the takeover) and tighten the type. */
+      @media (max-width: 560px) {
+        .dconn, .dpulse { display: none; }
+        .dbody { font-size: 10px; }
+        .dmid { min-height: 140px; }
+        .dpbody { font-size: 8.5px; }
+        .drow { gap: 7px; }
+        .drow .sd { width: 16px; height: 16px; }
+        .drow .nm { width: 40px; } .drow .cx { width: 40px; }
+        .drow .st { font-size: 9px; }
+        .dphone { width: 33%; }
       }
     </style>
   </head>
@@ -499,36 +703,68 @@
           </div>
 
           <div class="hero-right">
-            <div class="term" role="img" aria-label="cordless terminal: pairing a phone, then a dashboard of Claude, Codex, Copilot, and shell sessions">
-              <div class="term-bar">
-                <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
-                <span class="ttl">cordless — dashboard</span>
-              </div>
-              <div class="term-body" id="hero-term">
-                <span class="ln" data-step="1"><span class="p">$</span> <span class="cmd">cordless pair</span></span>
-                <span class="ln" data-step="2"><span class="cm">  scan with the cordless app · valid 5 min</span></span>
-                <div data-step="2" style="display:flex;gap:14px;align-items:center">
-                  <div class="qr" aria-hidden="true">
-                    <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i class="o"></i>
-                    <i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i>
-                    <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i>
-                    <i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i>
-                    <i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i>
-                    <i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i>
-                    <i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i>
-                    <i></i><i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i>
-                    <i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i>
-                    <i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i>
-                    <i class="o"></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i>
+            <div class="dstage" id="demo" role="img" aria-label="cordless starts on the dev box, pairs with a phone, then the mobile app takes over the same Codex session — its tabs mirror the Claude, Codex, Copilot and shell sessions.">
+              <!-- dev-box terminal (back / left) -->
+              <div class="dterm dim">
+                <div class="dbar"><i style="background:#f7768e"></i><i style="background:#e0af68"></i><i style="background:#9ece6a"></i><span class="ttl">cordless — dev box</span></div>
+                <div class="dbody">
+                  <span class="dl b1"><span class="p">$</span> <span class="cmd">npx cordless-cli</span></span>
+                  <span class="dl b2"><span class="cm">  daemon    </span><span class="don">● running</span></span>
+                  <span class="dl b3"><span class="cm">  tailscale </span><span class="don">● connected</span></span>
+                  <div class="dmid">
+                    <div class="dgrp dgrp-pair">
+                      <span class="dl pp1"><span class="p">$</span> <span class="cmd">cordless pair</span></span>
+                      <span class="dl pp2"><span class="cm">  scan with the cordless app</span></span>
+                      <div class="dqr" aria-hidden="true">
+                        <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i></i>
+                        <i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i><i></i><i></i>
+                        <i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i>
+                        <i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i>
+                      </div>
+                      <span class="dl pp3"><span class="ok">  ✓ paired</span> <span class="cm">"Pixel"</span></span>
+                    </div>
+                    <div class="dgrp dgrp-dash">
+                      <span class="dl" style="opacity:1"><span class="p">$</span> <span class="cmd">cordless</span></span>
+                      <div class="drow r1"><span class="sd" style="background:#d97757">✳</span><span class="nm">claude</span><span class="cx">web app</span><span class="st working">working</span></div>
+                      <div class="drow codex r2"><span class="rowhi"></span><span class="sd" style="background:#10a37f">❋</span><span class="nm">codex</span><span class="cx">api</span><span class="st waiting flip"><span class="a">waiting · you</span><span class="b">working · phone</span></span></div>
+                      <div class="drow r3"><span class="sd" style="background:#2f81f7">◉</span><span class="nm">copilot</span><span class="cx">tests</span><span class="st idle">idle</span></div>
+                      <div class="drow r4"><span class="sd" style="background:#6b7280;font-size:9px">&gt;_</span><span class="nm">shell</span><span class="cx">build</span><span class="st idle">idle</span><span class="tcur"></span></div>
+                    </div>
                   </div>
                 </div>
-                <span class="ln" data-step="3"><span class="ok">  ✓ paired</span> <span class="cm">"iPhone 15"</span></span>
-                <span class="ln" data-step="4" style="margin-top:6px"><span class="p">$</span> <span class="cmd">cordless</span></span>
-                <div class="sess" data-step="5"><span class="sdot" style="background:#d97757">✳</span><span class="snm">claude</span><span class="cm">web app</span><span class="sst working">working</span></div>
-                <div class="sess" data-step="6"><span class="sdot" style="background:#10a37f">❋</span><span class="snm">codex</span><span class="cm">api</span><span class="sst waiting">waiting · you</span></div>
-                <div class="sess" data-step="7"><span class="sdot" style="background:#2f81f7">◉</span><span class="snm">copilot</span><span class="cm">tests</span><span class="sst idle">idle</span></div>
-                <div class="sess" data-step="7"><span class="sdot" style="background:#6b7280;font-size:10px">&gt;_</span><span class="snm">shell</span><span class="cm">build</span><span class="sst idle">idle</span> <span class="cur" style="margin-left:6px"></span></div>
               </div>
+              <!-- phone (front / right) -->
+              <div class="dphone">
+                <div class="dscreen">
+                  <span class="dnotch"></span>
+                  <div class="dscan" aria-hidden="true">
+                    <div class="frame"></div>
+                    <span class="lbl">scanning…</span>
+                  </div>
+                  <div class="dpaired" aria-hidden="true"><span>✓ paired "Pixel"</span></div>
+                  <div class="dapp">
+                    <div class="dtabs">
+                      <span class="dtab first" style="background:rgba(140,160,200,0.16);color:var(--muted)">&gt;_&lt;</span>
+                      <span class="dtab" style="background:#d97757">✳</span>
+                      <span class="dtab codex" style="background:#10a37f">❋<span class="att"></span><span class="tabhi"></span></span>
+                      <span class="dtab" style="background:#2f81f7">◉</span>
+                    </div>
+                    <div class="dpbody">
+                      <div class="hd">❋ codex <span class="cm">· api</span></div>
+                      <div class="dprompt">
+                        <span class="cm">Allow Codex to run tests?</span>
+                        <span class="opt yes">› Yes<span class="sel"></span></span>
+                        <span class="opt">&nbsp;&nbsp;No</span>
+                      </div>
+                      <div class="dpout"><span class="ok">✓ running test suite</span><br /><span class="cm">  42 passed</span> <span class="dpcur"></span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <span class="dconn" aria-hidden="true"></span>
+              <span class="dpulse" aria-hidden="true"></span>
+              <span class="dcap"><b>same sessions</b> · anywhere</span>
+              <button class="dreplay" type="button" aria-label="Replay the animation">↻ replay</button>
             </div>
           </div>
         </div>
@@ -758,16 +994,24 @@ macOS     use the desktop app, or build from source</pre>
           els.forEach(function (e) { io.observe(e); });
         }
 
-        // Play the hero terminal's staged reveal once it scrolls into view.
-        var term = document.getElementById("hero-term");
-        if (term) {
-          if (reduce) { term.classList.add("go"); }
-          else {
+        // Play the hero "CLI -> mobile takeover" demo once it scrolls into view; Replay restarts it.
+        var demo = document.getElementById("demo");
+        if (demo) {
+          var play = function () {
+            demo.classList.remove("go");
+            void demo.offsetWidth; // force reflow so every animation restarts from 0
+            demo.classList.add("go");
+          };
+          if (reduce) {
+            demo.classList.add("go"); // reduced motion: CSS shows the final state, no motion
+          } else {
             var io2 = new IntersectionObserver(function (entries) {
-              entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("go"); io2.unobserve(en.target); } });
-            }, { threshold: 0.4 });
-            io2.observe(term);
+              entries.forEach(function (en) { if (en.isIntersecting) { play(); io2.unobserve(en.target); } });
+            }, { threshold: 0.35 });
+            io2.observe(demo);
           }
+          var replay = demo.querySelector(".dreplay");
+          if (replay) { replay.addEventListener("click", play); }
         }
       })();
     </script>
