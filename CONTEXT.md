@@ -86,6 +86,24 @@ it runs on every published GitHub release, or manually via
 `gh workflow run "Publish to Chocolatey" -f version=<X>` — it re-hashes the release zip, packs, and
 `choco push`es. `update-checksum.ps1 -Version X` does the same refresh locally.
 
+## Distribution — npm / npx (agent/ + packaging/npm/cordless-cli/)
+
+`agent/` IS the publishable npm package **`@naveenneog/cordless`** (was private `cordlessd`): `bin`
+`cordless`, `files: [src, public, README, LICENSE]`, **node-pty pinned to 1.1.0** (ships N-API prebuilds
+for win/mac/linux x64+arm64 → `npm i`/`npx` installs in ~12s with no compiler; unsupported platforms
+fall back to `node-gyp`). `prepack` runs `build:public` (`npm --prefix ../client run build` → agent/public)
+then `scripts/verify-package.js` (fails the pack unless public/index.html + hashed assets exist — never
+ship a UI-less daemon). `packaging/npm/cordless-cli/` is a **thin alias** (`bin.js` = `import
+"@naveenneog/cordless/src/index.js"`, dep on the canonical) so `npx cordless-cli` also works — no
+duplicate source. `service.js` `installService()` guards the ephemeral npx cache (`…/_npx/…`) and points
+the user to `npm i -g` for autostart. Publish: `.github/workflows/npm-publish.yml` (reusable — called by
+cli.yml `publish-npm` on tags + manual `gh workflow run "Publish to npm"`) publishes BOTH with npm
+provenance (OIDC `id-token: write`, added to cli.yml perms) using secret **`NPM_TOKEN`**; it syncs the
+alias version/dep to the canonical. **Not yet published** — needs the user's npm account (the
+`@naveenneog` scope) + an `NPM_TOKEN`. Verified locally end-to-end (pack→install→run→PTY→stop; alias
+resolves the canonical). Landing page now leads install with `npx @naveenneog/cordless`. Consulted Sol
+(turn 30).
+
 ## v0.8.3 — open sessions in new terminal tabs
 
 `feature/open-in-new-tab`: from the dashboard, press <kbd>o</kbd> to open the selected session in a
