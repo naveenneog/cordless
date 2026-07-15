@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: write
-  id-token: write # for npm publish provenance (publish-npm)
+  id-token: write # OIDC for npm trusted publishing (publish-npm)
 
 jobs:
   build:
@@ -84,11 +84,13 @@ jobs:
       version: ${{ github.ref_name }}
     secrets: inherit
 
-  # On a tag build, publish the cordless-cli package to npm (provenance via OIDC).
-  # Requires the NPM_TOKEN repo secret; skipped on non-tag builds.
+  # On a tag build, publish the cordless-cli package to npm via Trusted Publishing
+  # (OIDC — no token). The trust is configured on npmjs.com; skipped on non-tag builds.
   publish-npm:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/npm-publish.yml
-    secrets: inherit
 
