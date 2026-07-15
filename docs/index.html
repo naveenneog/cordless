@@ -485,7 +485,7 @@
               </a>
               <a class="btn ghost" href="#install">How it works</a>
             </div>
-            <p class="runline"><span class="dol">$</span> <b>npx @naveenneog/cordless</b> &nbsp;<span class="cm mono" style="color:var(--faint)"># or grab the binary — a pairing QR either way</span></p>
+            <p class="runline"><span class="dol">$</span> <b>npx cordless-cli</b> &nbsp;<span class="cm mono" style="color:var(--faint)"># or grab the binary — a pairing QR either way</span></p>
             <div class="agents">
               <span class="lbl">drives</span>
               <div class="row">
@@ -584,13 +584,13 @@
         <div class="sec-head reveal">
           <p class="kicker">// install</p>
           <h2>Two commands. Thirty seconds.</h2>
-          <p>Have Node? <code>npx @naveenneog/cordless</code>. Prefer zero dependencies? Grab the self-contained binary. Either way, <code>cordless</code> shows a QR you scan with the phone.</p>
+          <p>Have Node? <code>npx cordless-cli</code>. Prefer zero dependencies? Grab the self-contained binary. Either way, <code>cordless</code> shows a QR you scan with the phone.</p>
         </div>
 
         <div class="code reveal" style="margin-bottom:24px">
           <div class="term-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="ttl">have Node ≥ 20? one command</span></div>
-          <pre><span class="p">$</span> npx @naveenneog/cordless        <span class="cm"># try it instantly — no install</span>
-<span class="p">$</span> npm i -g @naveenneog/cordless   <span class="cm"># or install the `cordless` command globally</span>
+          <pre><span class="p">$</span> npx cordless-cli        <span class="cm"># try it instantly — no install</span>
+<span class="p">$</span> npm i -g cordless-cli   <span class="cm"># or install the `cordless` command globally</span>
 <span class="p">$</span> cordless                        <span class="cm"># dashboard + a pairing QR</span></pre>
         </div>
         <p class="lead-copy reveal" style="margin: 0 0 20px">
@@ -667,7 +667,7 @@ macOS     use the desktop app, or build from source</pre>
           <h2>Basically nothing.</h2>
         </div>
         <div class="grid">
-          <div class="card reveal"><h3>Dev box (runs cordless)</h3><p><strong>Nothing</strong> for the self-contained binary (its own Node runtime + <code>node-pty</code>, Windows or Linux) — or <strong>Node ≥ 20</strong> for <code>npx @naveenneog/cordless</code>. Optional: coding agents on <code>PATH</code> (<code>claude</code>, <code>codex</code>, <code>copilot</code>), or your own launchers.</p></div>
+          <div class="card reveal"><h3>Dev box (runs cordless)</h3><p><strong>Nothing</strong> for the self-contained binary (its own Node runtime + <code>node-pty</code>, Windows or Linux) — or <strong>Node ≥ 20</strong> for <code>npx cordless-cli</code>. Optional: coding agents on <code>PATH</code> (<code>claude</code>, <code>codex</code>, <code>copilot</code>), or your own launchers.</p></div>
           <div class="card reveal"><h3>Phone</h3><p>Any modern browser (install the <strong>PWA</strong>), or Android 8.0+ for the <strong>APK</strong>. Nothing else to install.</p></div>
           <div class="card reveal"><h3>Remote access (optional)</h3><p><a href="https://tailscale.com">Tailscale</a> on the dev box <em>and</em> phone for secure access from anywhere. Same-Wi-Fi LAN needs nothing extra.</p></div>
           <div class="card reveal"><h3>Building from source</h3><p>Only if you build it yourself: <strong>Node ≥ 22</strong> and a C/C++ toolchain for <code>node-pty</code>; for the APK, add <strong>JDK 21</strong> + the <strong>Android SDK</strong>. Most people just grab the prebuilt binaries.</p></div>

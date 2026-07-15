@@ -1,5 +1,5 @@
 {
-  "name": "@naveenneog/cordless",
+  "name": "cordless-cli",
   "version": "0.9.0",
   "type": "module",
   "description": "A CLI-first remote terminal — run cordless, scan the QR, and drive many Claude Code / Codex / GitHub Copilot / shell sessions from your phone.",
@@ -43,7 +43,6 @@
     "node": ">=20"
   },
   "publishConfig": {
-    "access": "public",
     "provenance": true
   },
   "scripts": {
